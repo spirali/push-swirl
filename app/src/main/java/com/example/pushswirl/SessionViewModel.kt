@@ -36,6 +36,9 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     // Session configuration
     var sessionConfig by mutableStateOf(storage.getLastSessionConfig() ?: SessionConfig())
 
+    // Notification settings
+    var notificationSettings by mutableStateOf(storage.loadNotificationSettings())
+
     // Active session state
     var sessionState by mutableStateOf<SessionState>(SessionState.Idle)
     var activePhases by mutableStateOf<List<PhaseSize>>(emptyList())
@@ -84,6 +87,12 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         sessionConfig = config
     }
 
+    fun updateNotificationSettings(settings: NotificationSettings) {
+        notificationSettings = settings
+        storage.saveNotificationSettings(settings)
+        timerService?.updateNotificationSettings(settings)
+    }
+
     fun startSession() {
         activePhases = sessionConfig.getActivePhases()
         if (activePhases.isEmpty()) return
@@ -94,7 +103,8 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
 
         // Start service
         val intent = Intent(getApplication(), TimerService::class.java).apply {
-            putExtra("notificationMode", sessionConfig.notificationMode)
+            putExtra("vibrationEnabled", notificationSettings.vibrationEnabled)
+            putExtra("soundEnabled", notificationSettings.soundEnabled)
         }
         getApplication<Application>().startService(intent)
         getApplication<Application>().bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
@@ -245,7 +255,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         sessionState = SessionState.Idle
     }
 
-    fun deleteSession(sessionId: Long) {
+    fun deleteSession(sessionId: String) {
         storage.deleteSession(sessionId)
         sessions = storage.loadSessions()
         stats = storage.calculateStats()

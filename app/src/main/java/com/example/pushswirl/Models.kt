@@ -2,6 +2,8 @@ package com.example.pushswirl
 
 import android.os.Parcelable
 import kotlinx.parcelize.Parcelize
+import java.util.UUID
+import kotlin.uuid.Uuid
 
 enum class PhaseSize {
     SMALL, MEDIUM, LARGE, XL
@@ -14,10 +16,6 @@ enum class PhaseDuration(val minutes: Int) {
     FIFTEEN(15)
 }
 
-enum class NotificationMode {
-    SILENT, VIBRATIONS, SOUND
-}
-
 enum class DilationPart {
     PUSH, SWIRL
 }
@@ -27,8 +25,7 @@ data class SessionConfig(
     val small: PhaseDuration = PhaseDuration.SKIP,
     val medium: PhaseDuration = PhaseDuration.FIFTEEN,
     val large: PhaseDuration = PhaseDuration.TEN,
-    val xl: PhaseDuration = PhaseDuration.SKIP,
-    val notificationMode: NotificationMode = NotificationMode.VIBRATIONS
+    val xl: PhaseDuration = PhaseDuration.SKIP
 ) : Parcelable {
     fun getDuration(size: PhaseSize): PhaseDuration {
         return when (size) {
@@ -53,7 +50,7 @@ data class PhaseData(
 
 @Parcelize
 data class Session(
-    val id: Long = System.currentTimeMillis(),
+    val id: String = UUID.randomUUID().toString(),
     val config: SessionConfig,
     val phases: List<PhaseData>,
     val totalSeconds: Long,
@@ -67,4 +64,9 @@ data class SessionStats(
     val wmaXlTTD: Double,
     val wmaSessionLength: Double,
     val totalSessions: Int
+)
+
+data class NotificationSettings(
+    val vibrationEnabled: Boolean = true,
+    val soundEnabled: Boolean = true
 )

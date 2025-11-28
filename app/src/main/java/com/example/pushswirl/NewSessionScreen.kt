@@ -18,7 +18,6 @@ fun NewSessionScreen(viewModel: SessionViewModel) {
     var medium by remember { mutableStateOf(viewModel.sessionConfig.medium) }
     var large by remember { mutableStateOf(viewModel.sessionConfig.large) }
     var xl by remember { mutableStateOf(viewModel.sessionConfig.xl) }
-    var notificationMode by remember { mutableStateOf(viewModel.sessionConfig.notificationMode) }
 
     Scaffold(
         topBar = {
@@ -45,7 +44,7 @@ fun NewSessionScreen(viewModel: SessionViewModel) {
             horizontalAlignment = Alignment.Start
         ) {
             Text(
-                text = "Phase Sizes",
+                text = "Phases",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
@@ -61,24 +60,11 @@ fun NewSessionScreen(viewModel: SessionViewModel) {
             Spacer(modifier = Modifier.height(12.dp))
             PhaseSelector("XL", xl) { xl = it }
 
-            Spacer(modifier = Modifier.height(32.dp))
-
-            Text(
-                text = "Notifications",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            NotificationModeSelector(notificationMode) { notificationMode = it }
-
             Spacer(modifier = Modifier.height(48.dp))
 
             Button(
                 onClick = {
-                    val config = SessionConfig(small, medium, large, xl, notificationMode)
+                    val config = SessionConfig(small, medium, large, xl)
                     viewModel.updateConfig(config)
                     viewModel.startSession()
                 },
@@ -129,34 +115,6 @@ fun PhaseSelector(
                         selectedContainerColor = MaterialTheme.colorScheme.primary,
                         selectedLabelColor = MaterialTheme.colorScheme.onPrimary
                     )
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun NotificationModeSelector(
-    selected: NotificationMode,
-    onSelect: (NotificationMode) -> Unit
-) {
-    Column {
-        NotificationMode.entries.forEach { mode ->
-            val isSelected = selected == mode
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                RadioButton(
-                    selected = isSelected,
-                    onClick = { onSelect(mode) },
-                    colors = RadioButtonDefaults.colors(
-                        selectedColor = MaterialTheme.colorScheme.primary
-                    )
-                )
-                Text(
-                    text = mode.name.lowercase().replaceFirstChar { it.uppercase() },
-                    modifier = Modifier.padding(start = 8.dp)
                 )
             }
         }

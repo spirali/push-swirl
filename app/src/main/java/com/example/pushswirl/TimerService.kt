@@ -39,7 +39,8 @@ class TimerService : Service() {
     private var vibrator: Vibrator? = null
     private var audioTrack: AudioTrack? = null
     private var toneGenerator: ToneGenerator? = null
-    private var notificationMode = NotificationMode.VIBRATIONS
+    private var vibrationEnabled = true
+    private var soundEnabled = true
 
     inner class TimerBinder : Binder() {
         fun getService(): TimerService = this@TimerService
@@ -71,13 +72,18 @@ class TimerService : Service() {
                 updateNotification()
             }
             else -> {
-                notificationMode = intent?.getSerializableExtra("notificationMode") as? NotificationMode
-                    ?: NotificationMode.VIBRATIONS
+                vibrationEnabled = intent?.getBooleanExtra("vibrationEnabled", true) ?: true
+                soundEnabled = intent?.getBooleanExtra("soundEnabled", true) ?: true
                 isRunning = true
                 startForeground(1, createNotification())
             }
         }
         return START_STICKY
+    }
+
+    fun updateNotificationSettings(settings: NotificationSettings) {
+        vibrationEnabled = settings.vibrationEnabled
+        soundEnabled = settings.soundEnabled
     }
 
     private fun createNotificationChannel() {
@@ -163,6 +169,8 @@ class TimerService : Service() {
     }
 
     private fun playTone(durationMs: Int) {
+        if (!soundEnabled) return
+
         try {
             val numSamples = (durationMs * SAMPLE_RATE) / 1000
             val buffer = ShortArray(numSamples)
@@ -191,48 +199,52 @@ class TimerService : Service() {
     }
 
     fun makeNotification(type: NotificationEvent) {
-        when (notificationMode) {
-            NotificationMode.SOUND -> {
-                when (type) {
-                    NotificationEvent.PUSH_END -> {
-                        playTone(100)
-                        Handler(Looper.getMainLooper()).postDelayed({
-                            playTone(100)
-                        }, 150)
-                    }
-                    NotificationEvent.SWIRL_END -> {
-                        playTone(300)
-                    }
-                    NotificationEvent.PHASE_END -> {
-                        repeat(3) { i ->
-                            Handler(Looper.getMainLooper()).postDelayed({
-                                playTone(300)
-                            }, i * 400L)
-                        }
-                    }
+        when (type) {
+            NotificationEvent.PUSH_END -> {
+                // Two short signals (200ms each with 200ms gap)
+                if (soundEnabled) {
+                    playTone(200)
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        playTone(200)
+                    }, 400) // 200ms signal + 200ms gap
+                }
+                if (vibrationEnabled) {
+                    val pattern = longArrayOf(0, 200, 200, 200)
+                    vibrate(pattern)
                 }
             }
-            NotificationMode.VIBRATIONS -> {
-                when (type) {
-                    NotificationEvent.PUSH_END -> {
-                        val pattern = longArrayOf(0, 100, 100, 100)
-                        vibrate(pattern)
-                    }
-                    NotificationEvent.SWIRL_END -> {
-                        val pattern = longArrayOf(0, 300)
-                        vibrate(pattern)
-                    }
-                    NotificationEvent.PHASE_END -> {
-                        val pattern = longArrayOf(0, 300, 200, 300, 200, 300)
-                        vibrate(pattern)
-                    }
+            NotificationEvent.SWIRL_END -> {
+                // One long signal (400ms)
+                if (soundEnabled) {
+                    playTone(400)
+                }
+                if (vibrationEnabled) {
+                    val pattern = longArrayOf(0, 400)
+                    vibrate(pattern)
                 }
             }
-            NotificationMode.SILENT -> {}
+            NotificationEvent.PHASE_END -> {
+                // Three long signals (400ms each with 200ms gaps)
+                if (soundEnabled) {
+                    playTone(400)
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        playTone(400)
+                    }, 600) // 400ms signal + 200ms gap
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        playTone(400)
+                    }, 1200) // 400ms + 200ms + 400ms + 200ms
+                }
+                if (vibrationEnabled) {
+                    val pattern = longArrayOf(0, 400, 200, 400, 200, 400)
+                    vibrate(pattern)
+                }
+            }
         }
     }
 
     private fun vibrate(pattern: LongArray) {
+        if (!vibrationEnabled) return
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             vibrator?.vibrate(VibrationEffect.createWaveform(pattern, -1))
         } else {

@@ -25,7 +25,7 @@ class SessionStorage(private val context: Context) {
         saveSessions(sessions)
     }
 
-    fun deleteSession(sessionId: Long) {
+    fun deleteSession(sessionId: String) {
         val sessions = loadSessions().filter { it.id != sessionId }
         saveSessions(sessions)
     }
@@ -36,6 +36,19 @@ class SessionStorage(private val context: Context) {
 
     fun getLastSessionConfig(): SessionConfig? {
         return loadSessions().firstOrNull()?.config
+    }
+
+    fun saveNotificationSettings(settings: NotificationSettings) {
+        prefs.edit()
+            .putBoolean("notification_vibration", settings.vibrationEnabled)
+            .putBoolean("notification_sound", settings.soundEnabled)
+            .apply()
+    }
+
+    fun loadNotificationSettings(): NotificationSettings {
+        val vibration = prefs.getBoolean("notification_vibration", true)
+        val sound = prefs.getBoolean("notification_sound", true)
+        return NotificationSettings(vibration, sound)
     }
 
     fun calculateStats(): SessionStats {

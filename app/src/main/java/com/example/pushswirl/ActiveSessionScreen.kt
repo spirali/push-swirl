@@ -164,6 +164,7 @@ fun TTDView(viewModel: SessionViewModel, phase: PhaseSize) {
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 fun DilationView(viewModel: SessionViewModel, phase: PhaseSize, part: DilationPart) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -234,7 +235,52 @@ fun DilationView(viewModel: SessionViewModel, phase: PhaseSize, part: DilationPa
             color = MaterialTheme.colorScheme.primary,
         )
 
-        Spacer(modifier = Modifier.height(48.dp))
+        Spacer(modifier = Modifier.height(32.dp))
+
+        // Notification controls
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Vibration toggle
+            FilterChip(
+                selected = viewModel.notificationSettings.vibrationEnabled,
+                onClick = {
+                    viewModel.updateNotificationSettings(
+                        viewModel.notificationSettings.copy(
+                            vibrationEnabled = !viewModel.notificationSettings.vibrationEnabled
+                        )
+                    )
+                },
+                label = { Text("Vibration") },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                ),
+                modifier = Modifier.weight(1f)
+            )
+
+            // Sound toggle
+            FilterChip(
+                selected = viewModel.notificationSettings.soundEnabled,
+                onClick = {
+                    viewModel.updateNotificationSettings(
+                        viewModel.notificationSettings.copy(
+                            soundEnabled = !viewModel.notificationSettings.soundEnabled
+                        )
+                    )
+                },
+                label = { Text("Sound") },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                ),
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
 
         Button(
             onClick = { viewModel.toggleDilationPause() },
