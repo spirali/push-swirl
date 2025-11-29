@@ -44,7 +44,7 @@ fun ActiveSessionScreen(viewModel: SessionViewModel) {
         ) {
             when (val state = viewModel.sessionState) {
                 is SessionState.TTD -> TTDView(viewModel, state.phase)
-                is SessionState.Dilation -> DilationView(viewModel, state.phase, state.part)
+                is SessionState.Dilation -> DilationView(viewModel, state.phase, state.action)
                 else -> {}
             }
         }
@@ -165,7 +165,7 @@ fun TTDView(viewModel: SessionViewModel, phase: PhaseSize) {
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-fun DilationView(viewModel: SessionViewModel, phase: PhaseSize, part: DilationPart) {
+fun DilationView(viewModel: SessionViewModel, phase: PhaseSize, part: DilationAction) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.fillMaxWidth()
@@ -183,7 +183,7 @@ fun DilationView(viewModel: SessionViewModel, phase: PhaseSize, part: DilationPa
             text = part.name,
             fontSize = 28.sp,
             fontWeight = FontWeight.Bold,
-            color = if (part == DilationPart.PUSH)
+            color = if (part == DilationAction.PUSH)
                 MaterialTheme.colorScheme.tertiary
             else
                 MaterialTheme.colorScheme.secondary

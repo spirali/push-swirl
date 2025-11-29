@@ -12,8 +12,8 @@ import android.os.*
 import androidx.core.app.NotificationCompat
 
 enum class NotificationEvent {
-    PUSH_END,
-    SWIRL_END,
+    PUSH_BEGIN,
+    SWIRL_BEGIN,
     PHASE_END
 }
 
@@ -29,7 +29,7 @@ class TimerService : Service() {
 
         var isRunning = false
         var currentPhase: PhaseSize? = null
-        var currentPart: DilationPart? = null
+        var currentPart: DilationAction? = null
         var remainingSeconds = 0
         var partRemainingSeconds = 0
         var isPaused = false
@@ -134,7 +134,7 @@ class TimerService : Service() {
         manager.notify(1, createNotification())
     }
 
-    fun updateTimerState(phase: PhaseSize?, part: DilationPart?, remaining: Int, partRemaining: Int) {
+    fun updateTimerState(phase: PhaseSize?, part: DilationAction?, remaining: Int, partRemaining: Int) {
         currentPhase = phase
         currentPart = part
         remainingSeconds = remaining
@@ -200,7 +200,7 @@ class TimerService : Service() {
 
     fun makeNotification(type: NotificationEvent) {
         when (type) {
-            NotificationEvent.PUSH_END -> {
+            NotificationEvent.SWIRL_BEGIN -> {
                 // Two short signals (200ms each with 200ms gap)
                 if (soundEnabled) {
                     playTone(200)
@@ -213,7 +213,7 @@ class TimerService : Service() {
                     vibrate(pattern)
                 }
             }
-            NotificationEvent.SWIRL_END -> {
+            NotificationEvent.PUSH_BEGIN -> {
                 // One long signal (400ms)
                 if (soundEnabled) {
                     playTone(400)

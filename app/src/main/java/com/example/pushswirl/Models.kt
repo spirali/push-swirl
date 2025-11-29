@@ -3,7 +3,6 @@ package com.example.pushswirl
 import android.os.Parcelable
 import kotlinx.parcelize.Parcelize
 import java.util.UUID
-import kotlin.uuid.Uuid
 
 enum class PhaseSize {
     SMALL, MEDIUM, LARGE, XL
@@ -16,7 +15,7 @@ enum class PhaseDuration(val minutes: Int) {
     FIFTEEN(15)
 }
 
-enum class DilationPart {
+enum class DilationAction {
     PUSH, SWIRL
 }
 

@@ -22,7 +22,7 @@ sealed class AppScreen {
 sealed class SessionState {
     object Idle : SessionState()
     data class TTD(val phase: PhaseSize) : SessionState()
-    data class Dilation(val phase: PhaseSize, val part: DilationPart) : SessionState()
+    data class Dilation(val phase: PhaseSize, val action: DilationAction) : SessionState()
 }
 
 class SessionViewModel(application: Application) : AndroidViewModel(application) {
@@ -148,7 +148,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         dilationRemainingSeconds = dilationTotalSeconds
         partRemainingSeconds = ACTION_TIME
         dilationPaused = false
-        sessionState = SessionState.Dilation(phase, DilationPart.PUSH)
+        sessionState = SessionState.Dilation(phase, DilationAction.PUSH)
 
         startDilationTimer()
     }
@@ -157,26 +157,28 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         dilationJob = viewModelScope.launch {
             while (isActive && dilationRemainingSeconds > 0) {
                 if (!dilationPaused) {
+
+                    if (partRemainingSeconds == ACTION_TIME) {
+                        // Make notification
+                        if ((sessionState as SessionState.Dilation).action == DilationAction.PUSH) {
+                            timerService?.makeNotification(NotificationEvent.PUSH_BEGIN)
+                        } else {
+                            timerService?.makeNotification(NotificationEvent.SWIRL_BEGIN)
+                        }
+                    }
                     delay(1000)
                     dilationRemainingSeconds--
                     partRemainingSeconds--
 
                     // Update service notification
                     val phase = (sessionState as? SessionState.Dilation)?.phase
-                    val part = (sessionState as? SessionState.Dilation)?.part
+                    val part = (sessionState as? SessionState.Dilation)?.action
                     timerService?.updateTimerState(phase, part, dilationRemainingSeconds, partRemainingSeconds)
 
                     if (partRemainingSeconds <= 0) {
                         // Switch part
-                        val currentPart = (sessionState as SessionState.Dilation).part
-                        val nextPart = if (currentPart == DilationPart.PUSH) DilationPart.SWIRL else DilationPart.PUSH
-
-                        // Make notification
-                        if (currentPart == DilationPart.PUSH) {
-                            timerService?.makeNotification(NotificationEvent.PUSH_END)
-                        } else {
-                            timerService?.makeNotification(NotificationEvent.SWIRL_END)
-                        }
+                        val currentPart = (sessionState as SessionState.Dilation).action
+                        val nextPart = if (currentPart == DilationAction.PUSH) DilationAction.SWIRL else DilationAction.PUSH
 
                         sessionState = SessionState.Dilation(activePhases[currentPhaseIndex], nextPart)
                         partRemainingSeconds = ACTION_TIME
