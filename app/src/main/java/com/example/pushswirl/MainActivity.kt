@@ -50,7 +50,7 @@ class MainActivity : ComponentActivity() {
 fun PushSwirlApp() {
     val viewModel: SessionViewModel = viewModel()
 
-    when (val screen = viewModel.currentScreen) {
+    when (viewModel.currentScreen) {
         is AppScreen.Home -> HomeScreen(viewModel)
         is AppScreen.NewSession -> NewSessionScreen(viewModel)
         is AppScreen.ActiveSession -> ActiveSessionScreen(viewModel)

@@ -7,8 +7,8 @@ import androidx.compose.ui.graphics.Color
 private val PinkPrimary = Color(0xFFFF94C2)
 private val PinkSecondary = Color(0xFFFFB3D9)
 private val LavenderPrimary = Color(0xFFDDB3FF)
-private val PeachAccent = Color(0xFFFFDAB9)
-private val MintAccent = Color(0xFFB5EAD7)
+/*private val PeachAccent = Color(0xFFFFDAB9)
+private val MintAccent = Color(0xFFB5EAD7)*/
 
 private val LightColorScheme = lightColorScheme(
     primary = PinkPrimary,
