@@ -165,7 +165,7 @@ fun TTDView(viewModel: SessionViewModel, phase: PhaseSize) {
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-fun DilationView(viewModel: SessionViewModel, phase: PhaseSize, part: DilationAction) {
+fun DilationView(viewModel: SessionViewModel, phase: PhaseSize, action: DilationAction) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.fillMaxWidth()
@@ -180,10 +180,10 @@ fun DilationView(viewModel: SessionViewModel, phase: PhaseSize, part: DilationAc
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
-            text = part.name,
+            text = action.name,
             fontSize = 28.sp,
             fontWeight = FontWeight.Bold,
-            color = if (part == DilationAction.PUSH)
+            color = if (action == DilationAction.PUSH)
                 MaterialTheme.colorScheme.tertiary
             else
                 MaterialTheme.colorScheme.secondary
@@ -191,9 +191,9 @@ fun DilationView(viewModel: SessionViewModel, phase: PhaseSize, part: DilationAc
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        // Part countdown (15s)
+        // Action countdown (15s)
         Text(
-            text = formatTime(viewModel.partRemainingSeconds.toLong()),
+            text = formatTime(viewModel.actionRemainingSeconds.toLong()),
             fontSize = 72.sp,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary

@@ -29,9 +29,9 @@ class TimerService : Service() {
 
         var isRunning = false
         var currentPhase: PhaseSize? = null
-        var currentPart: DilationAction? = null
+        var currentAction: DilationAction? = null
         var remainingSeconds = 0
-        var partRemainingSeconds = 0
+        var actionRemainingSeconds = 0
         var isPaused = false
     }
 
@@ -111,8 +111,8 @@ class TimerService : Service() {
         val text = when {
             !isRunning -> "Timer stopped"
             isPaused -> "Timer paused"
-            currentPhase != null && currentPart != null ->
-                "${currentPhase?.name} - ${currentPart?.name}: ${formatTime(partRemainingSeconds)}"
+            currentPhase != null && currentAction != null ->
+                "${currentPhase?.name} - ${currentAction?.name}: ${formatTime(actionRemainingSeconds)}"
             else -> "Timer running"
         }
 
@@ -134,11 +134,11 @@ class TimerService : Service() {
         manager.notify(1, createNotification())
     }
 
-    fun updateTimerState(phase: PhaseSize?, part: DilationAction?, remaining: Int, partRemaining: Int) {
+    fun updateTimerState(phase: PhaseSize?, action: DilationAction?, remaining: Int, actionRemaining: Int) {
         currentPhase = phase
-        currentPart = part
+        currentAction = action
         remainingSeconds = remaining
-        partRemainingSeconds = partRemaining
+        actionRemainingSeconds = actionRemaining
         updateNotification()
     }
 
@@ -257,7 +257,7 @@ class TimerService : Service() {
         super.onDestroy()
         isRunning = false
         currentPhase = null
-        currentPart = null
+        currentAction = null
         toneGenerator?.release()
     }
 

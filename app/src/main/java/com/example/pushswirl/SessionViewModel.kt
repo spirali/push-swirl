@@ -47,7 +47,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     var ttdRunning by mutableStateOf(false)
     var dilationTotalSeconds by mutableIntStateOf(0)
     var dilationRemainingSeconds by mutableIntStateOf(0)
-    var partRemainingSeconds by mutableIntStateOf(15)
+    var actionRemainingSeconds by mutableIntStateOf(15)
     var dilationPaused by mutableStateOf(false)
 
     // Session tracking
@@ -146,7 +146,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
 
         dilationTotalSeconds = duration.minutes * 60
         dilationRemainingSeconds = dilationTotalSeconds
-        partRemainingSeconds = ACTION_TIME
+        actionRemainingSeconds = ACTION_TIME
         dilationPaused = false
         sessionState = SessionState.Dilation(phase, DilationAction.PUSH)
 
@@ -158,7 +158,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
             while (isActive && dilationRemainingSeconds > 0) {
                 if (!dilationPaused) {
 
-                    if (partRemainingSeconds == ACTION_TIME) {
+                    if (actionRemainingSeconds == ACTION_TIME) {
                         // Make notification
                         if ((sessionState as SessionState.Dilation).action == DilationAction.PUSH) {
                             timerService?.makeNotification(NotificationEvent.PUSH_BEGIN)
@@ -168,20 +168,20 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
                     }
                     delay(1000)
                     dilationRemainingSeconds--
-                    partRemainingSeconds--
+                    actionRemainingSeconds--
 
                     // Update service notification
                     val phase = (sessionState as? SessionState.Dilation)?.phase
-                    val part = (sessionState as? SessionState.Dilation)?.action
-                    timerService?.updateTimerState(phase, part, dilationRemainingSeconds, partRemainingSeconds)
+                    val action = (sessionState as? SessionState.Dilation)?.action
+                    timerService?.updateTimerState(phase, action, dilationRemainingSeconds, actionRemainingSeconds)
 
-                    if (partRemainingSeconds <= 0) {
-                        // Switch part
-                        val currentPart = (sessionState as SessionState.Dilation).action
-                        val nextPart = if (currentPart == DilationAction.PUSH) DilationAction.SWIRL else DilationAction.PUSH
+                    if (actionRemainingSeconds <= 0) {
+                        // Switch actions
+                        val currentAction = (sessionState as SessionState.Dilation).action
+                        val nextAction = if (currentAction == DilationAction.PUSH) DilationAction.SWIRL else DilationAction.PUSH
 
-                        sessionState = SessionState.Dilation(activePhases[currentPhaseIndex], nextPart)
-                        partRemainingSeconds = ACTION_TIME
+                        sessionState = SessionState.Dilation(activePhases[currentPhaseIndex], nextAction)
+                        actionRemainingSeconds = ACTION_TIME
                     }
                 } else {
                     delay(100)
