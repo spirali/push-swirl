@@ -1,4 +1,4 @@
-package com.example.pushswirl
+package org.kreatrix.pushswirl
 
 import android.os.Parcelable
 import kotlinx.parcelize.Parcelize

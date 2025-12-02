@@ -6,16 +6,17 @@ plugins {
 }
 
 android {
-    namespace = "com.example.pushswirl"
+    namespace = "org.kreatrix.pushswirl"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.pushswirl"
+        applicationId = "org.kreatrix.pushswirl"
         minSdk = 26
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
 
+        setProperty("archivesBaseName", "push_swirl-v$versionName")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

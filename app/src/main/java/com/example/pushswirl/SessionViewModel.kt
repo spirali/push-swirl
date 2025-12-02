@@ -1,4 +1,4 @@
-package com.example.pushswirl
+package org.kreatrix.pushswirl
 
 import android.app.Application
 import android.content.ComponentName

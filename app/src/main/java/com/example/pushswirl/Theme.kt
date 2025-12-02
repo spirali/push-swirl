@@ -1,4 +1,4 @@
-package com.example.pushswirl
+package org.kreatrix.pushswirl
 
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable

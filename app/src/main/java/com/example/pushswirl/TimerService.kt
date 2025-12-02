@@ -1,4 +1,4 @@
-package com.example.pushswirl
+package org.kreatrix.pushswirl
 
 import android.app.*
 import android.content.Context
@@ -20,8 +20,8 @@ enum class NotificationEvent {
 class TimerService : Service() {
     companion object {
         const val CHANNEL_ID = "pushswirl_timer"
-        const val ACTION_PAUSE = "com.example.pushswirl.PAUSE"
-        const val ACTION_RESUME = "com.example.pushswirl.RESUME"
+        const val ACTION_PAUSE = "org.kreatrix.pushswirl.PAUSE"
+        const val ACTION_RESUME = "org.kreatrix.pushswirl.RESUME"
 
         // Tone configuration
         const val TONE_FREQUENCY = 800.0 // Hz - adjust this value to change frequency

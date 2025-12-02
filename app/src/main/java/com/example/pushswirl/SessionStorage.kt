@@ -1,4 +1,4 @@
-package com.example.pushswirl
+package org.kreatrix.pushswirl
 
 import android.content.Context
 import com.google.gson.Gson
