@@ -1,10 +1,12 @@
 package org.kreatrix.pushswirl
 
+import android.content.Intent
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -12,6 +14,9 @@ import androidx.compose.ui.unit.sp
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(viewModel: SessionViewModel) {
+    val context = LocalContext.current
+    var showNoDataDialog by remember { mutableStateOf(false) }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -74,6 +79,42 @@ fun HomeScreen(viewModel: SessionViewModel) {
             ) {
                 Text("Statistics", fontSize = 18.sp)
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            OutlinedButton(
+                onClick = {
+                    val uri = viewModel.exportSessions()
+                    if (uri != null) {
+                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = "application/json"
+                            putExtra(Intent.EXTRA_STREAM, uri)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        context.startActivity(Intent.createChooser(shareIntent, "Export Sessions"))
+                    } else {
+                        showNoDataDialog = true
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+            ) {
+                Text("Export Data", fontSize = 18.sp)
+            }
         }
+    }
+
+    if (showNoDataDialog) {
+        AlertDialog(
+            onDismissRequest = { showNoDataDialog = false },
+            title = { Text("No Data") },
+            text = { Text("There are no sessions to export yet.") },
+            confirmButton = {
+                TextButton(onClick = { showNoDataDialog = false }) {
+                    Text("OK")
+                }
+            }
+        )
     }
 }

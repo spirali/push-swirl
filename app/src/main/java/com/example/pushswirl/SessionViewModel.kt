@@ -420,6 +420,17 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         stats = storage.calculateStats()
     }
 
+    // ============================================================================
+    // EXPORT
+    // ============================================================================
+
+    /**
+     * Export all sessions and return Uri for sharing, or null if no sessions.
+     */
+    fun exportSessions(): android.net.Uri? {
+        return storage.exportSessionsToFile()
+    }
+
     fun cancelSession() {
         // Stop all timers
         ttdJob?.cancel()
