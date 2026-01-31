@@ -303,13 +303,13 @@ fun DilationView(viewModel: SessionViewModel, phase: PhaseSize, action: Dilation
         Spacer(modifier = Modifier.height(12.dp))
 
         // Early Finish button
-        OutlinedButton(
+        Button(
             onClick = { showEarlyFinishDialog = true },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp),
-            colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = MaterialTheme.colorScheme.tertiary
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.tertiary
             )
         ) {
             Text("Early Finish", fontSize = 18.sp)
