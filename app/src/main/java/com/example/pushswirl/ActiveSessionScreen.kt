@@ -166,6 +166,8 @@ fun TTDView(viewModel: SessionViewModel, phase: PhaseSize) {
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
 fun DilationView(viewModel: SessionViewModel, phase: PhaseSize, action: DilationAction) {
+    var showEarlyFinishDialog by remember { mutableStateOf(false) }
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.fillMaxWidth()
@@ -282,6 +284,7 @@ fun DilationView(viewModel: SessionViewModel, phase: PhaseSize, action: Dilation
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Pause button
         Button(
             onClick = { viewModel.toggleDilationPause() },
             modifier = Modifier
@@ -296,6 +299,50 @@ fun DilationView(viewModel: SessionViewModel, phase: PhaseSize, action: Dilation
                 fontSize = 18.sp
             )
         }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Early Finish button
+        OutlinedButton(
+            onClick = { showEarlyFinishDialog = true },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = MaterialTheme.colorScheme.tertiary
+            )
+        ) {
+            Text("Early Finish", fontSize = 18.sp)
+        }
+    }
+
+    // Early Finish confirmation dialog
+    if (showEarlyFinishDialog) {
+        AlertDialog(
+            onDismissRequest = { showEarlyFinishDialog = false },
+            title = { Text("Finish Early?") },
+            text = {
+                Text(
+                    "End this dilation phase now with ${formatTime(viewModel.dilationRemainingSeconds.toLong())} remaining? " +
+                            "The phase will be recorded with the actual time completed."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.earlyFinishDilation()
+                        showEarlyFinishDialog = false
+                    }
+                ) {
+                    Text("Finish Early", color = MaterialTheme.colorScheme.tertiary)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEarlyFinishDialog = false }) {
+                    Text("Continue")
+                }
+            }
+        )
     }
 }
 

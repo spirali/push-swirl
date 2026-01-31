@@ -44,8 +44,23 @@ data class SessionConfig(
 data class PhaseData(
     val size: PhaseSize,
     val ttdSeconds: Long,
-    val dilationMinutes: Int
-) : Parcelable
+    val dilationMinutes: Int,
+    // Nullable for backward compatibility with old logs
+    // If not null, the phase was finished early at this many seconds remaining
+    val earlyFinishSecondsRemaining: Int? = null
+) : Parcelable {
+    // Helper to check if phase was finished early
+    val wasFinishedEarly: Boolean
+        get() = earlyFinishSecondsRemaining != null && earlyFinishSecondsRemaining > 0
+
+    // Actual dilation time in seconds (planned minus remaining if early finish)
+    val actualDilationSeconds: Int
+        get() = if (earlyFinishSecondsRemaining != null) {
+            (dilationMinutes * 60) - earlyFinishSecondsRemaining
+        } else {
+            dilationMinutes * 60
+        }
+}
 
 @Parcelize
 data class Session(

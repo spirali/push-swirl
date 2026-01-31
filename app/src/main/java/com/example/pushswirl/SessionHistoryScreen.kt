@@ -146,21 +146,69 @@ fun SessionCard(session: Session, onDelete: () -> Unit) {
                 Spacer(modifier = Modifier.height(12.dp))
 
                 session.phases.forEach { phase ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                    Column(
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(
-                            text = phase.size.name,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text(
-                            text = "TTD: ${formatDuration(phase.ttdSeconds)} | Dilation: ${phase.dilationMinutes}m",
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = phase.size.name,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                // Show early finish indicator
+                                if (phase.wasFinishedEarly) {
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.2f),
+                                        shape = MaterialTheme.shapes.small
+                                    ) {
+                                        Text(
+                                            text = "Early",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = MaterialTheme.colorScheme.tertiary,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+                            }
+                            Text(
+                                text = "TTD: ${formatDuration(phase.ttdSeconds)}",
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        // Dilation details row
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            if (phase.wasFinishedEarly) {
+                                // Show actual vs planned time for early finish
+                                Text(
+                                    text = "Dilation: ${formatDurationSeconds(phase.actualDilationSeconds)} / ${phase.dilationMinutes}m planned",
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.tertiary
+                                )
+                            } else {
+                                Text(
+                                    text = "Dilation: ${phase.dilationMinutes}m",
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                                )
+                            }
+                        }
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
                 }
             }
         }
@@ -196,6 +244,16 @@ private fun formatDate(timestamp: Long): String {
 }
 
 private fun formatDuration(seconds: Long): String {
+    val mins = seconds / 60
+    val secs = seconds % 60
+    return if (mins > 0) {
+        "${mins}m ${secs}s"
+    } else {
+        "${secs}s"
+    }
+}
+
+private fun formatDurationSeconds(seconds: Int): String {
     val mins = seconds / 60
     val secs = seconds % 60
     return if (mins > 0) {

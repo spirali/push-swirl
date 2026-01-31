@@ -79,6 +79,9 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     // Store TTD value when finishing (before state changes)
     private var lastTtdSeconds = 0L
 
+    // Store early finish seconds remaining (null if not early finished)
+    private var earlyFinishSecondsRemaining: Int? = null
+
     // Timer jobs
     private var ttdJob: Job? = null
     private var dilationJob: Job? = null
@@ -206,6 +209,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         ttdAccumulatedMs = 0L
         ttdRunning = false
         ttdSeconds = 0L
+        earlyFinishSecondsRemaining = null  // Reset early finish tracking
     }
 
     fun startTTD() {
@@ -251,6 +255,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         dilationAccumulatedMs = 0L
         dilationPaused = false
         lastNotifiedActionIndex = -1
+        earlyFinishSecondsRemaining = null  // Reset early finish tracking
 
         sessionState = SessionState.Dilation(phase, DilationAction.PUSH)
         updateTimeDisplays()
@@ -330,16 +335,41 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         updateTimeDisplays() // Update UI immediately
     }
 
+    // ============================================================================
+    // EARLY FINISH - ends dilation phase before timer completes
+    // ============================================================================
+
+    fun earlyFinishDilation() {
+        // Record the remaining seconds at time of early finish
+        earlyFinishSecondsRemaining = calculateDilationRemainingSeconds()
+
+        // Cancel the timer job
+        dilationJob?.cancel()
+
+        // Finish the dilation (this will save the phase with early finish info)
+        finishDilation()
+    }
+
     private fun finishDilation() {
         dilationJob?.cancel()
 
         // Make phase end notification
         timerService?.makeNotification(NotificationEvent.PHASE_END)
 
-        // Save completed phase
+        // Save completed phase (with early finish info if applicable)
         val phase = activePhases[currentPhaseIndex]
         val duration = sessionConfig.getDuration(phase)
-        completedPhases.add(PhaseData(phase, lastTtdSeconds, duration.minutes))
+        completedPhases.add(
+            PhaseData(
+                size = phase,
+                ttdSeconds = lastTtdSeconds,
+                dilationMinutes = duration.minutes,
+                earlyFinishSecondsRemaining = earlyFinishSecondsRemaining
+            )
+        )
+
+        // Reset early finish tracking
+        earlyFinishSecondsRemaining = null
 
         // Move to next phase or finish session
         currentPhaseIndex++
@@ -416,6 +446,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         dilationRemainingSeconds = 0
         actionRemainingSeconds = ACTION_TIME
         dilationPaused = false
+        earlyFinishSecondsRemaining = null
 
         // Navigate to home
         currentScreen = AppScreen.Home
