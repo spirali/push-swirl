@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
+import android.os.SystemClock
 import androidx.compose.runtime.*
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -43,20 +44,47 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     var sessionState by mutableStateOf<SessionState>(SessionState.Idle)
     var activePhases by mutableStateOf<List<PhaseSize>>(emptyList())
     var currentPhaseIndex by mutableIntStateOf(0)
-    var ttdSeconds by mutableLongStateOf(0L)
-    var ttdRunning by mutableStateOf(false)
-    var dilationTotalSeconds by mutableIntStateOf(0)
-    var dilationRemainingSeconds by mutableIntStateOf(0)
-    var actionRemainingSeconds by mutableIntStateOf(15)
     var dilationPaused by mutableStateOf(false)
+
+    // ============================================================================
+    // ABSOLUTE TIME TRACKING - survives device sleep
+    // Using SystemClock.elapsedRealtime() which continues during sleep
+    // ============================================================================
+
+    // TTD (Time To Dilation) - counts UP from 0
+    var ttdRunning by mutableStateOf(false)
+    private var ttdStartTime = 0L           // elapsedRealtime when TTD started
+    private var ttdAccumulatedMs = 0L       // accumulated time if paused
+
+    // Exposed TTD seconds as mutable state (updated by timer loop)
+    var ttdSeconds by mutableLongStateOf(0L)
+        private set
+
+    // Dilation timer - counts DOWN
+    var dilationTotalSeconds by mutableIntStateOf(0)
+    private var dilationStartTime = 0L      // elapsedRealtime when dilation started
+    private var dilationAccumulatedMs = 0L  // accumulated elapsed time before pause
+
+    // Exposed remaining seconds as mutable state (updated by timer loop)
+    var dilationRemainingSeconds by mutableIntStateOf(0)
+        private set
+
+    var actionRemainingSeconds by mutableIntStateOf(ACTION_TIME)
+        private set
 
     // Session tracking
     private val completedPhases = mutableStateListOf<PhaseData>()
     private var sessionStartTime = 0L
 
+    // Store TTD value when finishing (before state changes)
+    private var lastTtdSeconds = 0L
+
     // Timer jobs
     private var ttdJob: Job? = null
     private var dilationJob: Job? = null
+
+    // Track last action index to detect changes for notifications
+    private var lastNotifiedActionIndex = -1
 
     // Service
     private var timerService: TimerService? = null
@@ -79,6 +107,60 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     var sessions by mutableStateOf(storage.loadSessions())
     var stats by mutableStateOf(storage.calculateStats())
 
+    // ============================================================================
+    // HELPER FUNCTIONS - calculate time from absolute clock
+    // ============================================================================
+
+    private fun calculateTtdSeconds(): Long {
+        if (!ttdRunning) return ttdAccumulatedMs / 1000
+        val elapsed = ttdAccumulatedMs + (SystemClock.elapsedRealtime() - ttdStartTime)
+        return elapsed / 1000
+    }
+
+    private fun calculateDilationElapsedMs(): Long {
+        return if (dilationPaused) {
+            dilationAccumulatedMs
+        } else {
+            dilationAccumulatedMs + (SystemClock.elapsedRealtime() - dilationStartTime)
+        }
+    }
+
+    private fun calculateDilationRemainingSeconds(): Int {
+        if (dilationTotalSeconds == 0) return 0
+        val elapsedMs = calculateDilationElapsedMs()
+        val remainingMs = (dilationTotalSeconds * 1000L) - elapsedMs
+        return (remainingMs.coerceAtLeast(0) / 1000).toInt()
+    }
+
+    private fun calculateActionRemainingSeconds(): Int {
+        if (dilationTotalSeconds == 0) return ACTION_TIME
+        val elapsedMs = calculateDilationElapsedMs()
+        val elapsedSeconds = (elapsedMs / 1000).toInt()
+        val intoCurrentAction = elapsedSeconds % ACTION_TIME
+        return ACTION_TIME - intoCurrentAction
+    }
+
+    private fun calculateCurrentActionIndex(): Int {
+        if (dilationTotalSeconds == 0) return 0
+        val elapsedMs = calculateDilationElapsedMs()
+        val elapsedSeconds = (elapsedMs / 1000).toInt()
+        return elapsedSeconds / ACTION_TIME
+    }
+
+    // ============================================================================
+    // UPDATE FUNCTION - refreshes all time-based state values
+    // ============================================================================
+
+    private fun updateTimeDisplays() {
+        ttdSeconds = calculateTtdSeconds()
+        dilationRemainingSeconds = calculateDilationRemainingSeconds()
+        actionRemainingSeconds = calculateActionRemainingSeconds()
+    }
+
+    // ============================================================================
+    // NAVIGATION & CONFIG
+    // ============================================================================
+
     fun navigateTo(screen: AppScreen) {
         currentScreen = screen
     }
@@ -92,6 +174,10 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         storage.saveNotificationSettings(settings)
         timerService?.updateNotificationSettings(settings)
     }
+
+    // ============================================================================
+    // SESSION LIFECYCLE
+    // ============================================================================
 
     fun startSession() {
         activePhases = sessionConfig.getActivePhases()
@@ -116,96 +202,111 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     private fun startTTDForCurrentPhase() {
         val phase = activePhases[currentPhaseIndex]
         sessionState = SessionState.TTD(phase)
-        ttdSeconds = 0L
+        ttdStartTime = 0L
+        ttdAccumulatedMs = 0L
         ttdRunning = false
+        ttdSeconds = 0L
     }
 
     fun startTTD() {
         ttdRunning = true
+        ttdStartTime = SystemClock.elapsedRealtime()
+
+        // Start a UI refresh loop
         ttdJob = viewModelScope.launch {
             while (isActive && ttdRunning) {
-                delay(1000)
-                ttdSeconds++
+                updateTimeDisplays()
+                delay(200) // Update UI 5 times per second
             }
         }
     }
 
     fun pauseTTD() {
+        if (ttdRunning) {
+            // Save accumulated time before pausing
+            ttdAccumulatedMs += SystemClock.elapsedRealtime() - ttdStartTime
+        }
         ttdRunning = false
         ttdJob?.cancel()
+        updateTimeDisplays() // Final update
     }
 
     fun finishTTD() {
+        // Store the TTD value before stopping
+        lastTtdSeconds = calculateTtdSeconds()
         pauseTTD()
         startDilationForCurrentPhase()
     }
+
+    // ============================================================================
+    // DILATION PHASE
+    // ============================================================================
 
     private fun startDilationForCurrentPhase() {
         val phase = activePhases[currentPhaseIndex]
         val duration = sessionConfig.getDuration(phase)
 
         dilationTotalSeconds = duration.minutes * 60
-        dilationRemainingSeconds = dilationTotalSeconds
-        actionRemainingSeconds = ACTION_TIME
+        dilationStartTime = SystemClock.elapsedRealtime()
+        dilationAccumulatedMs = 0L
         dilationPaused = false
+        lastNotifiedActionIndex = -1
+
         sessionState = SessionState.Dilation(phase, DilationAction.PUSH)
+        updateTimeDisplays()
 
         startDilationTimer()
     }
 
     private fun startDilationTimer() {
         dilationJob = viewModelScope.launch {
-            while (isActive && dilationRemainingSeconds > 0) {
-                if (!dilationPaused) {
+            // Send initial notification
+            timerService?.makeNotification(NotificationEvent.PUSH_BEGIN)
+            lastNotifiedActionIndex = 0
 
-                    if (actionRemainingSeconds == ACTION_TIME) {
-                        // Make notification
-                        if ((sessionState as SessionState.Dilation).action == DilationAction.PUSH) {
+            while (isActive && calculateDilationRemainingSeconds() > 0) {
+                if (!dilationPaused) {
+                    // Update displayed values from absolute time
+                    updateTimeDisplays()
+
+                    // Check if we need to send a notification for a new action
+                    val currentIdx = calculateCurrentActionIndex()
+                    if (currentIdx != lastNotifiedActionIndex) {
+                        lastNotifiedActionIndex = currentIdx
+
+                        // Update session state with current action
+                        val currentAction = if (currentIdx % 2 == 0) DilationAction.PUSH else DilationAction.SWIRL
+                        sessionState = SessionState.Dilation(activePhases[currentPhaseIndex], currentAction)
+
+                        // Send notification
+                        if (currentAction == DilationAction.PUSH) {
                             timerService?.makeNotification(NotificationEvent.PUSH_BEGIN)
                         } else {
                             timerService?.makeNotification(NotificationEvent.SWIRL_BEGIN)
                         }
                     }
-                    delay(1000)
-                    dilationRemainingSeconds--
-                    actionRemainingSeconds--
 
                     // Update service notification
                     val phase = (sessionState as? SessionState.Dilation)?.phase
                     val action = (sessionState as? SessionState.Dilation)?.action
                     timerService?.updateTimerState(phase, action, dilationRemainingSeconds, actionRemainingSeconds)
-
-                    if (actionRemainingSeconds <= 0) {
-                        // Switch actions
-                        val currentAction = (sessionState as SessionState.Dilation).action
-                        val nextAction = if (currentAction == DilationAction.PUSH) DilationAction.SWIRL else DilationAction.PUSH
-
-                        sessionState = SessionState.Dilation(activePhases[currentPhaseIndex], nextAction)
-                        actionRemainingSeconds = ACTION_TIME
-                    }
-                } else {
-                    delay(100)
                 }
+
+                delay(200) // Check frequently for responsive UI
             }
 
-            if (dilationRemainingSeconds <= 0) {
+            if (calculateDilationRemainingSeconds() <= 0) {
                 finishDilation()
             }
         }
     }
 
     fun toggleDilationPause() {
-        dilationPaused = !dilationPaused
-
         if (dilationPaused) {
-            timerService?.let {
-                TimerService.isPaused = true
-                val intent = Intent(getApplication(), TimerService::class.java).apply {
-                    action = TimerService.ACTION_PAUSE
-                }
-                getApplication<Application>().startService(intent)
-            }
-        } else {
+            // Resuming - restart the clock from now
+            dilationStartTime = SystemClock.elapsedRealtime()
+            dilationPaused = false
+
             timerService?.let {
                 TimerService.isPaused = false
                 val intent = Intent(getApplication(), TimerService::class.java).apply {
@@ -213,7 +314,20 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
                 }
                 getApplication<Application>().startService(intent)
             }
+        } else {
+            // Pausing - save accumulated time
+            dilationAccumulatedMs += SystemClock.elapsedRealtime() - dilationStartTime
+            dilationPaused = true
+
+            timerService?.let {
+                TimerService.isPaused = true
+                val intent = Intent(getApplication(), TimerService::class.java).apply {
+                    action = TimerService.ACTION_PAUSE
+                }
+                getApplication<Application>().startService(intent)
+            }
         }
+        updateTimeDisplays() // Update UI immediately
     }
 
     private fun finishDilation() {
@@ -225,7 +339,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         // Save completed phase
         val phase = activePhases[currentPhaseIndex]
         val duration = sessionConfig.getDuration(phase)
-        completedPhases.add(PhaseData(phase, ttdSeconds, duration.minutes))
+        completedPhases.add(PhaseData(phase, lastTtdSeconds, duration.minutes))
 
         // Move to next phase or finish session
         currentPhaseIndex++
@@ -246,7 +360,10 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         storage.addSession(session)
 
         // Stop service
-        getApplication<Application>().unbindService(serviceConnection)
+        if (serviceBound) {
+            getApplication<Application>().unbindService(serviceConnection)
+            serviceBound = false
+        }
         getApplication<Application>().stopService(Intent(getApplication(), TimerService::class.java))
 
         // Reload data
@@ -256,6 +373,10 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         currentScreen = AppScreen.Home
         sessionState = SessionState.Idle
     }
+
+    // ============================================================================
+    // SESSION MANAGEMENT
+    // ============================================================================
 
     fun deleteSession(sessionId: String) {
         storage.deleteSession(sessionId)
@@ -277,6 +398,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         // Stop service
         if (serviceBound) {
             getApplication<Application>().unbindService(serviceConnection)
+            serviceBound = false
         }
         getApplication<Application>().stopService(Intent(getApplication(), TimerService::class.java))
 
@@ -284,8 +406,15 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         sessionState = SessionState.Idle
         completedPhases.clear()
         currentPhaseIndex = 0
-        ttdSeconds = 0L
+        ttdStartTime = 0L
+        ttdAccumulatedMs = 0L
         ttdRunning = false
+        ttdSeconds = 0L
+        dilationTotalSeconds = 0
+        dilationStartTime = 0L
+        dilationAccumulatedMs = 0L
+        dilationRemainingSeconds = 0
+        actionRemainingSeconds = ACTION_TIME
         dilationPaused = false
 
         // Navigate to home
