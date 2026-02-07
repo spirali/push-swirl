@@ -207,6 +207,26 @@ fun SessionCard(session: Session, onDelete: () -> Unit) {
                                 )
                             }
                         }
+
+                        // Display depth if recorded
+                        if (phase.depthCm != null) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                val depthFormatted = if (phase.depthCm % 1 == 0f) {
+                                    "${phase.depthCm.toInt()} cm"
+                                } else {
+                                    String.format("%.1f cm", phase.depthCm)
+                                }
+                                Text(
+                                    text = "Depth: $depthFormatted",
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.secondary,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
                     }
                     Spacer(modifier = Modifier.height(12.dp))
                 }

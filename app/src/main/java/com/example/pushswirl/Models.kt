@@ -24,7 +24,8 @@ data class SessionConfig(
     val small: PhaseDuration = PhaseDuration.SKIP,
     val medium: PhaseDuration = PhaseDuration.FIFTEEN,
     val large: PhaseDuration = PhaseDuration.TEN,
-    val xl: PhaseDuration = PhaseDuration.SKIP
+    val xl: PhaseDuration = PhaseDuration.SKIP,
+    val recordDepth: Boolean = false
 ) : Parcelable {
     fun getDuration(size: PhaseSize): PhaseDuration {
         return when (size) {
@@ -47,7 +48,10 @@ data class PhaseData(
     val dilationMinutes: Int,
     // Nullable for backward compatibility with old logs
     // If not null, the phase was finished early at this many seconds remaining
-    val earlyFinishSecondsRemaining: Int? = null
+    val earlyFinishSecondsRemaining: Int? = null,
+    // Nullable when depth recording is disabled or for backward compatibility
+    // Depth in centimeters
+    val depthCm: Float? = null
 ) : Parcelable {
     // Helper to check if phase was finished early
     val wasFinishedEarly: Boolean
