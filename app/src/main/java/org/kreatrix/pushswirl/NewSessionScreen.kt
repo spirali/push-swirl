@@ -18,6 +18,7 @@ fun NewSessionScreen(viewModel: SessionViewModel) {
     var medium by remember { mutableStateOf(viewModel.sessionConfig.medium) }
     var large by remember { mutableStateOf(viewModel.sessionConfig.large) }
     var xl by remember { mutableStateOf(viewModel.sessionConfig.xl) }
+    var recordDepth by remember { mutableStateOf(viewModel.sessionConfig.recordDepth) }
 
     Scaffold(
         topBar = {
@@ -60,11 +61,41 @@ fun NewSessionScreen(viewModel: SessionViewModel) {
             Spacer(modifier = Modifier.height(12.dp))
             PhaseSelector("XL", xl) { xl = it }
 
-            Spacer(modifier = Modifier.height(48.dp))
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Record depth checkbox
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "Record Reached Depth",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Checkbox(
+                    checked = recordDepth,
+                    onCheckedChange = { recordDepth = it },
+                    colors = CheckboxDefaults.colors(
+                        checkedColor = MaterialTheme.colorScheme.primary
+                    )
+                )
+            }
+
+//            Text(
+//                text = "Record the reached depth",
+//                fontSize = 14.sp,
+//                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+//                modifier = Modifier.padding(start = 0.dp, top = 4.dp)
+//            )
+
+            Spacer(modifier = Modifier.height(32.dp))
 
             Button(
                 onClick = {
-                    val config = SessionConfig(small, medium, large, xl)
+                    val config = SessionConfig(small, medium, large, xl, recordDepth)
                     viewModel.updateConfig(config)
                     viewModel.startSession()
                 },

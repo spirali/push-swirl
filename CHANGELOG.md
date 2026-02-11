@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## v1.2
+
+* Depth recording
+* Export format cleaned
+* Import implemented
+
 ## v1.1
 
 * Fixed problem with time tracking when application is suspended.

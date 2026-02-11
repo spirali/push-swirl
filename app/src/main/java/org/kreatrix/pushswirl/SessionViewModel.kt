@@ -23,6 +23,7 @@ sealed class AppScreen {
 sealed class SessionState {
     object Idle : SessionState()
     data class TTD(val phase: PhaseSize) : SessionState()
+    data class DepthInput(val phase: PhaseSize) : SessionState()
     data class Dilation(val phase: PhaseSize, val action: DilationAction) : SessionState()
 }
 
@@ -45,6 +46,10 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     var activePhases by mutableStateOf<List<PhaseSize>>(emptyList())
     var currentPhaseIndex by mutableIntStateOf(0)
     var dilationPaused by mutableStateOf(false)
+
+    // Depth recording
+    var currentDepthInput by mutableStateOf(14f)
+        private set
 
     // ============================================================================
     // ABSOLUTE TIME TRACKING - survives device sleep
@@ -81,6 +86,9 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
 
     // Store early finish seconds remaining (null if not early finished)
     private var earlyFinishSecondsRemaining: Int? = null
+
+    // Store depth for current phase
+    private var currentPhaseDepth: Float? = null
 
     // Timer jobs
     private var ttdJob: Job? = null
@@ -179,6 +187,19 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     }
 
     // ============================================================================
+    // DEPTH INPUT
+    // ============================================================================
+
+    fun updateDepthInput(depth: Float) {
+        currentDepthInput = depth.coerceIn(0.1f, 99.9f)
+    }
+
+    fun confirmDepth() {
+        currentPhaseDepth = currentDepthInput
+        startDilationForCurrentPhase()
+    }
+
+    // ============================================================================
     // SESSION LIFECYCLE
     // ============================================================================
 
@@ -210,6 +231,12 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         ttdRunning = false
         ttdSeconds = 0L
         earlyFinishSecondsRemaining = null  // Reset early finish tracking
+        currentPhaseDepth = null  // Reset depth tracking
+
+        // Load the last depth for this phase size
+        if (sessionConfig.recordDepth) {
+            currentDepthInput = storage.getLastDepthForSize(phase)
+        }
     }
 
     fun startTTD() {
@@ -239,7 +266,14 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         // Store the TTD value before stopping
         lastTtdSeconds = calculateTtdSeconds()
         pauseTTD()
-        startDilationForCurrentPhase()
+
+        // If depth recording is enabled, show depth input screen
+        if (sessionConfig.recordDepth) {
+            val phase = activePhases[currentPhaseIndex]
+            sessionState = SessionState.DepthInput(phase)
+        } else {
+            startDilationForCurrentPhase()
+        }
     }
 
     // ============================================================================
@@ -356,7 +390,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         // Make phase end notification
         timerService?.makeNotification(NotificationEvent.PHASE_END)
 
-        // Save completed phase (with early finish info if applicable)
+        // Save completed phase (with early finish info and depth if applicable)
         val phase = activePhases[currentPhaseIndex]
         val duration = sessionConfig.getDuration(phase)
         completedPhases.add(
@@ -364,12 +398,14 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
                 size = phase,
                 ttdSeconds = lastTtdSeconds,
                 dilationMinutes = duration.minutes,
-                earlyFinishSecondsRemaining = earlyFinishSecondsRemaining
+                earlyFinishSecondsRemaining = earlyFinishSecondsRemaining,
+                depthCm = currentPhaseDepth
             )
         )
 
-        // Reset early finish tracking
+        // Reset early finish and depth tracking
         earlyFinishSecondsRemaining = null
+        currentPhaseDepth = null
 
         // Move to next phase or finish session
         currentPhaseIndex++
@@ -421,7 +457,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     }
 
     // ============================================================================
-    // EXPORT
+    // EXPORT & IMPORT
     // ============================================================================
 
     /**
@@ -429,6 +465,24 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
      */
     fun exportSessions(): android.net.Uri? {
         return storage.exportSessionsToFile()
+    }
+
+    /**
+     * Save export to Downloads folder.
+     */
+    fun saveExportToDownloads(): ExportResult {
+        return storage.saveExportToDownloads()
+    }
+
+    /**
+     * Import sessions from a file Uri.
+     */
+    fun importSessions(uri: android.net.Uri): ImportResult {
+        val result = storage.importSessionsFromUri(uri)
+        // Reload data after import
+        sessions = storage.loadSessions()
+        stats = storage.calculateStats()
+        return result
     }
 
     fun cancelSession() {
@@ -458,6 +512,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         actionRemainingSeconds = ACTION_TIME
         dilationPaused = false
         earlyFinishSecondsRemaining = null
+        currentPhaseDepth = null
 
         // Navigate to home
         currentScreen = AppScreen.Home
