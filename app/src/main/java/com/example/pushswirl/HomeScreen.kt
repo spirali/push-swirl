@@ -9,9 +9,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -21,6 +25,28 @@ fun HomeScreen(viewModel: SessionViewModel) {
     var showExportOptionsDialog by remember { mutableStateOf(false) }
     var importResultMessage by remember { mutableStateOf<String?>(null) }
     var exportResultMessage by remember { mutableStateOf<String?>(null) }
+
+    var currentTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(60_000L)
+            currentTime = System.currentTimeMillis()
+        }
+    }
+
+    val lastSessionTimestamp = viewModel.sessions.maxByOrNull { it.timestamp }?.timestamp
+    val timeSinceLastSession = lastSessionTimestamp?.let { ts ->
+        val totalMinutes = (currentTime - ts) / 60_000
+        val hours = totalMinutes / 60
+        val minutes = totalMinutes % 60
+        if (hours < 24) {
+            "${hours}h ${minutes}m"
+        } else {
+            val days = hours / 24
+            val remainingHours = hours % 24
+            "$days days $remainingHours hours"
+        }
+    }
 
     // File picker for import
     val importLauncher = rememberLauncherForActivityResult(
@@ -67,6 +93,24 @@ fun HomeScreen(viewModel: SessionViewModel) {
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
             )
+
+            if (timeSinceLastSession != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    buildAnnotatedString {
+                        withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp)) {
+                            append("Last session: ")
+                        }
+                        withStyle(SpanStyle(
+                            color = MaterialTheme.colorScheme.primary,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )) {
+                            append("$timeSinceLastSession ago")
+                        }
+                    }
+                )
+            }
 
             Spacer(modifier = Modifier.height(48.dp))
 
