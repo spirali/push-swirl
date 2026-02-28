@@ -110,30 +110,27 @@ fun TTDView(viewModel: SessionViewModel, phase: PhaseSize) {
         Spacer(modifier = Modifier.height(48.dp))
 
         if (viewModel.ttdRunning) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            Button(
+                onClick = { viewModel.pauseTTD() },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
             ) {
-                Button(
-                    onClick = { viewModel.pauseTTD() },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(56.dp)
-                ) {
-                    Text("Pause", fontSize = 18.sp)
-                }
+                Text("Pause", fontSize = 18.sp)
+            }
 
-                Button(
-                    onClick = { viewModel.finishTTD() },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(56.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.tertiary
-                    )
-                ) {
-                    Text("Depth reached", fontSize = 18.sp)
-                }
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Button(
+                onClick = { viewModel.finishTTD() },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.tertiary
+                )
+            ) {
+                Text("Depth reached", fontSize = 18.sp)
             }
         } else {
             if (viewModel.ttdSeconds > 0) {
