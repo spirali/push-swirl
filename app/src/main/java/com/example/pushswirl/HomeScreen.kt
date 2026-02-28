@@ -87,6 +87,9 @@ fun HomeScreen(viewModel: SessionViewModel) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
+            val versionName = remember {
+                context.packageManager.getPackageInfo(context.packageName, 0).versionName
+            }
             Text(
                 text = "Push & Swirl",
                 fontSize = 28.sp,
@@ -178,6 +181,14 @@ fun HomeScreen(viewModel: SessionViewModel) {
             ) {
                 Text("Import Data", fontSize = 18.sp)
             }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text(
+                text = "v$versionName",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+            )
         }
     }
 

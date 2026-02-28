@@ -2,8 +2,9 @@
 
 ## v1.3
 
-* Show time from last session
-* Depth recording moved after time
+* Sound reworked, it now respects global audio settings
+* Show time from the last session
+* Depth recording moved after timer
 * Fix "Depth reached" on small screens
 
 ## v1.2

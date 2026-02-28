@@ -3,11 +3,7 @@ package org.kreatrix.pushswirl
 import android.app.*
 import android.content.Context
 import android.content.Intent
-import android.media.AudioAttributes
-import android.media.AudioFormat
-import android.media.ToneGenerator
-import android.media.AudioManager
-import android.media.AudioTrack
+import android.media.MediaPlayer
 import android.os.*
 import androidx.core.app.NotificationCompat
 
@@ -23,10 +19,6 @@ class TimerService : Service() {
         const val ACTION_PAUSE = "org.kreatrix.pushswirl.PAUSE"
         const val ACTION_RESUME = "org.kreatrix.pushswirl.RESUME"
 
-        // Tone configuration
-        const val TONE_FREQUENCY = 800.0 // Hz - adjust this value to change frequency
-        const val SAMPLE_RATE = 44100
-
         var isRunning = false
         var currentPhase: PhaseSize? = null
         var currentAction: DilationAction? = null
@@ -37,8 +29,6 @@ class TimerService : Service() {
 
     private val binder = TimerBinder()
     private var vibrator: Vibrator? = null
-    private var audioTrack: AudioTrack? = null
-    private var toneGenerator: ToneGenerator? = null
     private var vibrationEnabled = true
     private var soundEnabled = true
 
@@ -58,7 +48,6 @@ class TimerService : Service() {
             @Suppress("DEPRECATION")
             getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
         }
-        initAudioTrack()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -142,102 +131,41 @@ class TimerService : Service() {
         updateNotification()
     }
 
-    private fun initAudioTrack() {
-        val bufferSize = AudioTrack.getMinBufferSize(
-            SAMPLE_RATE,
-            AudioFormat.CHANNEL_OUT_MONO,
-            AudioFormat.ENCODING_PCM_16BIT
-        )
-
-        audioTrack = AudioTrack.Builder()
-            .setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ALARM)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build()
-            )
-            .setAudioFormat(
-                AudioFormat.Builder()
-                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                    .setSampleRate(SAMPLE_RATE)
-                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                    .build()
-            )
-            .setBufferSizeInBytes(bufferSize)
-            .setTransferMode(AudioTrack.MODE_STREAM)
-            .build()
-    }
-
-    private fun playTone(durationMs: Int) {
-        if (!soundEnabled) return
-
+    private fun playSound(resId: Int, onComplete: (() -> Unit)? = null) {
+        if (!soundEnabled) {
+            onComplete?.invoke()
+            return
+        }
         try {
-            val numSamples = (durationMs * SAMPLE_RATE) / 1000
-            val buffer = ShortArray(numSamples)
-
-            // Generate sine wave at specified frequency
-            for (i in 0 until numSamples) {
-                val angle = 2.0 * Math.PI * i * TONE_FREQUENCY / SAMPLE_RATE
-                buffer[i] = (kotlin.math.sin(angle) * Short.MAX_VALUE).toInt().toShort()
+            val mp = MediaPlayer.create(this, resId) ?: return
+            mp.setOnCompletionListener {
+                it.release()
+                onComplete?.invoke()
             }
-
-            audioTrack?.let { track ->
-                // Set volume to maximum
-                val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-                val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM)
-                audioManager.setStreamVolume(AudioManager.STREAM_ALARM, maxVolume, 0)
-
-                if (track.state == AudioTrack.STATE_INITIALIZED) {
-                    track.play()
-                    track.write(buffer, 0, buffer.size)
-                    track.stop()
-                }
-            }
+            mp.start()
         } catch (e: Exception) {
             e.printStackTrace()
+            onComplete?.invoke()
         }
     }
 
     fun makeNotification(type: NotificationEvent) {
         when (type) {
-            NotificationEvent.SWIRL_BEGIN -> {
-                // Two short signals (200ms each with 200ms gap)
-                if (soundEnabled) {
-                    playTone(200)
-                    Handler(Looper.getMainLooper()).postDelayed({
-                        playTone(200)
-                    }, 400) // 200ms signal + 200ms gap
-                }
-                if (vibrationEnabled) {
-                    val pattern = longArrayOf(0, 200, 200, 200)
-                    vibrate(pattern)
-                }
-            }
             NotificationEvent.PUSH_BEGIN -> {
-                // One long signal (400ms)
-                if (soundEnabled) {
-                    playTone(400)
-                }
-                if (vibrationEnabled) {
-                    val pattern = longArrayOf(0, 400)
-                    vibrate(pattern)
-                }
+                playSound(R.raw.beep_long)
+                if (vibrationEnabled) vibrate(longArrayOf(0, 400))
+            }
+            NotificationEvent.SWIRL_BEGIN -> {
+                playSound(R.raw.beep_short) { playSound(R.raw.beep_short) }
+                if (vibrationEnabled) vibrate(longArrayOf(0, 200, 200, 200))
             }
             NotificationEvent.PHASE_END -> {
-                // Three long signals (400ms each with 200ms gaps)
-                if (soundEnabled) {
-                    playTone(400)
-                    Handler(Looper.getMainLooper()).postDelayed({
-                        playTone(400)
-                    }, 600) // 400ms signal + 200ms gap
-                    Handler(Looper.getMainLooper()).postDelayed({
-                        playTone(400)
-                    }, 1200) // 400ms + 200ms + 400ms + 200ms
+                playSound(R.raw.beep_long) {
+                    playSound(R.raw.beep_long) {
+                        playSound(R.raw.beep_long)
+                    }
                 }
-                if (vibrationEnabled) {
-                    val pattern = longArrayOf(0, 400, 200, 400, 200, 400)
-                    vibrate(pattern)
-                }
+                if (vibrationEnabled) vibrate(longArrayOf(0, 400, 200, 400, 200, 400))
             }
         }
     }
@@ -258,7 +186,6 @@ class TimerService : Service() {
         isRunning = false
         currentPhase = null
         currentAction = null
-        toneGenerator?.release()
     }
 
     private fun formatTime(seconds: Int): String {
