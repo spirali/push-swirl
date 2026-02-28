@@ -248,7 +248,7 @@ fun DepthInputView(viewModel: SessionViewModel, phase: PhaseSize) {
                 containerColor = MaterialTheme.colorScheme.primary
             )
         ) {
-            Text("Continue to Dilation", fontSize = 18.sp)
+            Text("Continue", fontSize = 18.sp)
         }
     }
 }

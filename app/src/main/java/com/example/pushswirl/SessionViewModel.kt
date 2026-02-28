@@ -196,7 +196,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
 
     fun confirmDepth() {
         currentPhaseDepth = currentDepthInput
-        startDilationForCurrentPhase()
+        saveCurrentPhaseAndAdvance()
     }
 
     // ============================================================================
@@ -266,14 +266,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         // Store the TTD value before stopping
         lastTtdSeconds = calculateTtdSeconds()
         pauseTTD()
-
-        // If depth recording is enabled, show depth input screen
-        if (sessionConfig.recordDepth) {
-            val phase = activePhases[currentPhaseIndex]
-            sessionState = SessionState.DepthInput(phase)
-        } else {
-            startDilationForCurrentPhase()
-        }
+        startDilationForCurrentPhase()
     }
 
     // ============================================================================
@@ -390,6 +383,16 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         // Make phase end notification
         timerService?.makeNotification(NotificationEvent.PHASE_END)
 
+        // If depth recording is enabled, show depth input before advancing
+        if (sessionConfig.recordDepth) {
+            val phase = activePhases[currentPhaseIndex]
+            sessionState = SessionState.DepthInput(phase)
+        } else {
+            saveCurrentPhaseAndAdvance()
+        }
+    }
+
+    private fun saveCurrentPhaseAndAdvance() {
         // Save completed phase (with early finish info and depth if applicable)
         val phase = activePhases[currentPhaseIndex]
         val duration = sessionConfig.getDuration(phase)
