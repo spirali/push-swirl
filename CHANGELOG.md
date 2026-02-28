@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## v1.3
+
+* Show time from last session
+* Depth recording moved after time
+* Fix "Depth reached" on small screens
+
 ## v1.2
 
 * Depth recording
