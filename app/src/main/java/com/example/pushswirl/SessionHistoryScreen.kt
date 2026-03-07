@@ -1,5 +1,8 @@
 package org.kreatrix.pushswirl
 
+import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -7,6 +10,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -16,7 +20,30 @@ import java.util.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SessionHistoryScreen(viewModel: SessionViewModel) {
+    val context = LocalContext.current
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showExportOptionsDialog by remember { mutableStateOf(false) }
+    var importResultMessage by remember { mutableStateOf<String?>(null) }
+    var exportResultMessage by remember { mutableStateOf<String?>(null) }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let {
+            when (val result = viewModel.importSessions(it)) {
+                is ImportResult.Success -> {
+                    importResultMessage = if (result.skipped > 0) {
+                        "Imported ${result.imported} session(s)\n${result.skipped} duplicate(s) skipped"
+                    } else {
+                        "Successfully imported ${result.imported} session(s)"
+                    }
+                }
+                is ImportResult.Error -> {
+                    importResultMessage = "Import failed: ${result.message}"
+                }
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -31,39 +58,66 @@ fun SessionHistoryScreen(viewModel: SessionViewModel) {
                         Text("Back", color = MaterialTheme.colorScheme.onPrimary)
                     }
                 },
-                actions = {
-                    if (viewModel.sessions.isNotEmpty()) {
-                        TextButton(onClick = { showDeleteDialog = true }) {
-                            Text("Clear All", color = MaterialTheme.colorScheme.onPrimary)
-                        }
-                    }
-                }
             )
         }
     ) { padding ->
-        if (viewModel.sessions.isEmpty()) {
-            Box(
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            // Action buttons
+            Row(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentAlignment = Alignment.Center
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(
-                    text = "No sessions yet",
-                    fontSize = 18.sp,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                )
+                Button(
+                    onClick = { importLauncher.launch("application/json") },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Import")
+                }
+                Button(
+                    onClick = { showExportOptionsDialog = true },
+                    enabled = viewModel.sessions.isNotEmpty(),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Export")
+                }
+                Button(
+                    onClick = { showDeleteDialog = true },
+                    enabled = viewModel.sessions.isNotEmpty(),
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("Clear All")
+                }
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(viewModel.sessions) { session ->
-                    SessionCard(session, onDelete = { viewModel.deleteSession(session.id) })
+
+            if (viewModel.sessions.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "No sessions yet",
+                        fontSize = 18.sp,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                    )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(viewModel.sessions) { session ->
+                        SessionCard(session, onDelete = { viewModel.deleteSession(session.id) })
+                    }
                 }
             }
         }
@@ -88,6 +142,67 @@ fun SessionHistoryScreen(viewModel: SessionViewModel) {
                 TextButton(onClick = { showDeleteDialog = false }) {
                     Text("Cancel")
                 }
+            }
+        )
+    }
+
+    if (showExportOptionsDialog) {
+        AlertDialog(
+            onDismissRequest = { showExportOptionsDialog = false },
+            title = { Text("Export Data") },
+            text = { Text("Choose how to export your sessions:") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showExportOptionsDialog = false
+                        when (val result = viewModel.saveExportToDownloads()) {
+                            is ExportResult.Success -> exportResultMessage = "Saved to Downloads folder:\n${result.filename}"
+                            is ExportResult.Error -> exportResultMessage = result.message
+                        }
+                    }
+                ) {
+                    Text("Save as file")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showExportOptionsDialog = false
+                        val uri = viewModel.exportSessions()
+                        if (uri != null) {
+                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                type = "application/json"
+                                putExtra(Intent.EXTRA_STREAM, uri)
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+                            context.startActivity(Intent.createChooser(shareIntent, "Share Export File"))
+                        }
+                    }
+                ) {
+                    Text("Share")
+                }
+            }
+        )
+    }
+
+    if (importResultMessage != null) {
+        AlertDialog(
+            onDismissRequest = { importResultMessage = null },
+            title = { Text("Import Result") },
+            text = { Text(importResultMessage!!) },
+            confirmButton = {
+                TextButton(onClick = { importResultMessage = null }) { Text("OK") }
+            }
+        )
+    }
+
+    if (exportResultMessage != null) {
+        AlertDialog(
+            onDismissRequest = { exportResultMessage = null },
+            title = { Text("Export Result") },
+            text = { Text(exportResultMessage!!) },
+            confirmButton = {
+                TextButton(onClick = { exportResultMessage = null }) { Text("OK") }
             }
         )
     }

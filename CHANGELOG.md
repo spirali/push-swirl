@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## Unreleased
+
+* "Screen always on" while session is running
+* Export/Import buttons moved to Session History
+
 ## v1.3
 
 * Sound reworked, it now respects global audio settings

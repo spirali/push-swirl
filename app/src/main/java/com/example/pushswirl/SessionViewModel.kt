@@ -18,6 +18,7 @@ sealed class AppScreen {
     data class ActiveSession(val config: SessionConfig) : AppScreen()
     object SessionHistory : AppScreen()
     object Statistics : AppScreen()
+    object Settings : AppScreen()
 }
 
 sealed class SessionState {
@@ -40,6 +41,9 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
 
     // Notification settings
     var notificationSettings by mutableStateOf(storage.loadNotificationSettings())
+
+    // App settings
+    var keepScreenOn by mutableStateOf(storage.loadKeepScreenOn())
 
     // Active session state
     var sessionState by mutableStateOf<SessionState>(SessionState.Idle)
@@ -184,6 +188,11 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         notificationSettings = settings
         storage.saveNotificationSettings(settings)
         timerService?.updateNotificationSettings(settings)
+    }
+
+    fun updateKeepScreenOn(enabled: Boolean) {
+        keepScreenOn = enabled
+        storage.saveKeepScreenOn(enabled)
     }
 
     // ============================================================================

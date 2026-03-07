@@ -79,6 +79,14 @@ class SessionStorage(private val context: Context) {
         return NotificationSettings(vibration, sound)
     }
 
+    fun saveKeepScreenOn(enabled: Boolean) {
+        prefs.edit().putBoolean("keep_screen_on", enabled).apply()
+    }
+
+    fun loadKeepScreenOn(): Boolean {
+        return prefs.getBoolean("keep_screen_on", true)
+    }
+
     fun getLastDepthForSize(size: PhaseSize): Float {
         // Get the last recorded depth from sessions that have depth recorded
         val sessions = loadSessions()

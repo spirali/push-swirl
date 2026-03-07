@@ -23,8 +23,10 @@ import androidx.compose.runtime.setValue
 @Composable
 fun ActiveSessionScreen(viewModel: SessionViewModel) {
     val window = (LocalContext.current as Activity).window
-    DisposableEffect(Unit) {
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    DisposableEffect(viewModel.keepScreenOn) {
+        if (viewModel.keepScreenOn) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
         onDispose {
             window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
