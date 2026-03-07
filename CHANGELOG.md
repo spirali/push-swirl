@@ -4,6 +4,7 @@
 
 * "Screen always on" while session is running
 * Export/Import buttons moved to Session History
+* Dark theme
 
 ## v1.3
 

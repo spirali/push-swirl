@@ -44,6 +44,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
 
     // App settings
     var keepScreenOn by mutableStateOf(storage.loadKeepScreenOn())
+    var themeMode by mutableStateOf(storage.loadThemeMode())
 
     // Active session state
     var sessionState by mutableStateOf<SessionState>(SessionState.Idle)
@@ -193,6 +194,11 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     fun updateKeepScreenOn(enabled: Boolean) {
         keepScreenOn = enabled
         storage.saveKeepScreenOn(enabled)
+    }
+
+    fun updateThemeMode(mode: ThemeMode) {
+        themeMode = mode
+        storage.saveThemeMode(mode)
     }
 
     // ============================================================================

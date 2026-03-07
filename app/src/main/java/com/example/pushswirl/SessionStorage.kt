@@ -87,6 +87,15 @@ class SessionStorage(private val context: Context) {
         return prefs.getBoolean("keep_screen_on", true)
     }
 
+    fun saveThemeMode(mode: ThemeMode) {
+        prefs.edit().putString("theme_mode", mode.name).apply()
+    }
+
+    fun loadThemeMode(): ThemeMode {
+        val name = prefs.getString("theme_mode", ThemeMode.AUTO.name) ?: ThemeMode.AUTO.name
+        return ThemeMode.valueOf(name)
+    }
+
     fun getLastDepthForSize(size: PhaseSize): Float {
         // Get the last recorded depth from sessions that have depth recorded
         val sessions = loadSessions()

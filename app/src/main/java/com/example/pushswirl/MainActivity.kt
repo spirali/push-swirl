@@ -34,14 +34,7 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            PushSwirlTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    PushSwirlApp()
-                }
-            }
+            PushSwirlApp()
         }
     }
 }
@@ -50,12 +43,19 @@ class MainActivity : ComponentActivity() {
 fun PushSwirlApp() {
     val viewModel: SessionViewModel = viewModel()
 
-    when (viewModel.currentScreen) {
-        is AppScreen.Home -> HomeScreen(viewModel)
-        is AppScreen.NewSession -> NewSessionScreen(viewModel)
-        is AppScreen.ActiveSession -> ActiveSessionScreen(viewModel)
-        is AppScreen.SessionHistory -> SessionHistoryScreen(viewModel)
-        is AppScreen.Statistics -> StatisticsScreen(viewModel)
-        is AppScreen.Settings -> SettingsScreen(viewModel)
+    PushSwirlTheme(themeMode = viewModel.themeMode) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            when (viewModel.currentScreen) {
+                is AppScreen.Home -> HomeScreen(viewModel)
+                is AppScreen.NewSession -> NewSessionScreen(viewModel)
+                is AppScreen.ActiveSession -> ActiveSessionScreen(viewModel)
+                is AppScreen.SessionHistory -> SessionHistoryScreen(viewModel)
+                is AppScreen.Statistics -> StatisticsScreen(viewModel)
+                is AppScreen.Settings -> SettingsScreen(viewModel)
+            }
+        }
     }
 }

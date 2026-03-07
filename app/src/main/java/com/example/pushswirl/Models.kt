@@ -4,6 +4,8 @@ import android.os.Parcelable
 import kotlinx.parcelize.Parcelize
 import java.util.UUID
 
+enum class ThemeMode { AUTO, LIGHT, DARK }
+
 enum class PhaseSize {
     SMALL, MEDIUM, LARGE, XL
 }
