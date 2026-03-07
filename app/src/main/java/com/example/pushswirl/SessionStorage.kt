@@ -53,6 +53,13 @@ class SessionStorage(private val context: Context) {
         saveSessions(sessions)
     }
 
+    fun saveOrUpdateSession(session: Session) {
+        val sessions = loadSessions().toMutableList()
+        val idx = sessions.indexOfFirst { it.id == session.id }
+        if (idx >= 0) sessions[idx] = session else sessions.add(0, session)
+        saveSessions(sessions)
+    }
+
     fun deleteSession(sessionId: String) {
         val sessions = loadSessions().filter { it.id != sessionId }
         saveSessions(sessions)

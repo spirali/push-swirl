@@ -11,6 +11,7 @@ import androidx.compose.runtime.*
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.*
+import java.util.UUID
 
 sealed class AppScreen {
     object Home : AppScreen()
@@ -85,6 +86,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     // Session tracking
     private val completedPhases = mutableStateListOf<PhaseData>()
     private var sessionStartTime = 0L
+    private var sessionId = ""
 
     // Store TTD value when finishing (before state changes)
     private var lastTtdSeconds = 0L
@@ -225,6 +227,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         currentPhaseIndex = 0
         completedPhases.clear()
         sessionStartTime = System.currentTimeMillis()
+        sessionId = UUID.randomUUID().toString()
 
         // Start service
         val intent = Intent(getApplication(), TimerService::class.java).apply {
@@ -282,6 +285,14 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         // Store the TTD value before stopping
         lastTtdSeconds = calculateTtdSeconds()
         pauseTTD()
+        val phase = activePhases[currentPhaseIndex]
+        val plannedMinutes = sessionConfig.getDuration(phase).minutes
+        saveSessionCheckpoint(PhaseData(
+            size = phase,
+            ttdSeconds = lastTtdSeconds,
+            dilationMinutes = plannedMinutes,
+            earlyFinishSecondsRemaining = plannedMinutes * 60
+        ))
         startDilationForCurrentPhase()
     }
 
@@ -378,6 +389,18 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         updateTimeDisplays() // Update UI immediately
     }
 
+    private fun saveSessionCheckpoint(currentPartialPhase: PhaseData? = null) {
+        val phases = completedPhases.toList() + listOfNotNull(currentPartialPhase)
+        if (phases.isEmpty()) return
+        storage.saveOrUpdateSession(Session(
+            id = sessionId,
+            config = sessionConfig,
+            phases = phases,
+            totalSeconds = (System.currentTimeMillis() - sessionStartTime) / 1000,
+            timestamp = sessionStartTime
+        ))
+    }
+
     // ============================================================================
     // EARLY FINISH - ends dilation phase before timer completes
     // ============================================================================
@@ -402,6 +425,13 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         // If depth recording is enabled, show depth input before advancing
         if (sessionConfig.recordDepth) {
             val phase = activePhases[currentPhaseIndex]
+            val duration = sessionConfig.getDuration(phase)
+            saveSessionCheckpoint(PhaseData(
+                size = phase,
+                ttdSeconds = lastTtdSeconds,
+                dilationMinutes = duration.minutes,
+                earlyFinishSecondsRemaining = earlyFinishSecondsRemaining
+            ))
             sessionState = SessionState.DepthInput(phase)
         } else {
             saveCurrentPhaseAndAdvance()
@@ -421,6 +451,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
                 depthCm = currentPhaseDepth
             )
         )
+        saveSessionCheckpoint()
 
         // Reset early finish and depth tracking
         earlyFinishSecondsRemaining = null
@@ -438,11 +469,12 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     private fun finishSession() {
         val totalTime = (System.currentTimeMillis() - sessionStartTime) / 1000
         val session = Session(
+            id = sessionId,
             config = sessionConfig,
             phases = completedPhases.toList(),
             totalSeconds = totalTime
         )
-        storage.addSession(session)
+        storage.saveOrUpdateSession(session)
 
         // Stop service
         if (serviceBound) {

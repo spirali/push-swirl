@@ -1,12 +1,13 @@
 # CHANGELOG
 
-## Unreleased
+## v1.4
 
 * "Screen always on" while session is running
 * Custom audio volume settings
 * "Fanfare" is played when phase is ended
 * Export/Import buttons moved to Session History
 * Dark theme
+* Saving partial session results in case of application is unepextedly closed
 
 ## v1.3
 
