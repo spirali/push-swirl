@@ -167,11 +167,7 @@ class TimerService : Service() {
                 if (vibrationEnabled) vibrate(longArrayOf(0, 200, 200, 200))
             }
             NotificationEvent.PHASE_END -> {
-                playSound(R.raw.beep_long) {
-                    playSound(R.raw.beep_long) {
-                        playSound(R.raw.beep_long, restore)
-                    }
-                }
+                playSound(R.raw.finish, restore)
                 if (vibrationEnabled) vibrate(longArrayOf(0, 400, 200, 400, 200, 400))
             }
         }
