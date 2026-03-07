@@ -13,7 +13,7 @@ android {
         applicationId = "org.kreatrix.pushswirl"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
+        versionCode = 3
         versionName = "1.3"
 
         setProperty("archivesBaseName", "push_swirl-v$versionName")

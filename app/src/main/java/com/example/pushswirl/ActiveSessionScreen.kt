@@ -1,11 +1,15 @@
 package org.kreatrix.pushswirl
 
+import android.app.Activity
+import android.view.WindowManager
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -18,6 +22,14 @@ import androidx.compose.runtime.setValue
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ActiveSessionScreen(viewModel: SessionViewModel) {
+    val window = (LocalContext.current as Activity).window
+    DisposableEffect(Unit) {
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        onDispose {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
     var showCancelDialog by remember { mutableStateOf(false) }
 
     Scaffold(
