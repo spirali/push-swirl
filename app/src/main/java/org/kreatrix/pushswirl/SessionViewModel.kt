@@ -48,6 +48,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     var themeMode by mutableStateOf(storage.loadThemeMode())
     var countdownEnabled by mutableStateOf(storage.loadCountdownEnabled())
     var countdownIntervalMinutes by mutableIntStateOf(storage.loadCountdownIntervalMinutes())
+    var day0Date by mutableStateOf(storage.loadDay0Date())
 
     // Active session state
     var sessionState by mutableStateOf<SessionState>(SessionState.Idle)
@@ -219,6 +220,11 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     fun updateCountdownIntervalMinutes(minutes: Int) {
         countdownIntervalMinutes = minutes
         storage.saveCountdownIntervalMinutes(minutes)
+    }
+
+    fun updateDay0Date(epochMillis: Long?) {
+        day0Date = epochMillis
+        storage.saveDay0Date(epochMillis)
     }
 
     // ============================================================================

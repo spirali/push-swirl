@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## v1.7
+
+* Allow to set "Day 0" (date when it all started); Day 0 is part of the export
+* When Day 0 is set, show "Day XX" on the main menu screen where XX is number of days from day 0
+
 ## v1.6
 
 * Fixed "swipe back" behavior

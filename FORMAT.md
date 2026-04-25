@@ -16,6 +16,7 @@ The export file is a **UTF-8 encoded JSON** file. It contains metadata about the
 | :--- | :--- | :--- |
 | `exportDate` | String | ISO 8601 timestamp of when the export was created.  |
 | `appVersion` | String | The version of the PushSwirl app used to create the export.  |
+| `day0Date` | String? | *Optional.* ISO 8601 timestamp of the Day 0 start date. Absent when no start date is set. Restored on import when present; absent in exports from older app versions.  |
 | `sessions` | Array | A list of Session objects.  |
 
 ### Session Object (`SessionExport`) 
@@ -44,6 +45,7 @@ The export file is a **UTF-8 encoded JSON** file. It contains metadata about the
 {
   "exportDate": "2026-02-07T09:21:48+01:00",
   "appVersion": "1.0.4",
+  "day0Date": "2026-01-01T00:00:00+01:00",
   "totalSessions": 1,
   "sessions": [
     {

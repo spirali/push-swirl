@@ -13,6 +13,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -177,6 +180,76 @@ fun SettingsScreen(viewModel: SessionViewModel) {
                     Button(onClick = { commitInterval() }) {
                         Text("Set")
                     }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+            Divider()
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Day 0 section
+            Text(
+                text = "Progress",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+
+            var showDatePicker by remember { mutableStateOf(false) }
+            val day0Set = viewModel.day0Date != null
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Day 0", fontSize = 16.sp)
+                    Text(
+                        "When it all started",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                }
+                Checkbox(
+                    checked = day0Set,
+                    onCheckedChange = { checked ->
+                        if (checked) showDatePicker = true
+                        else viewModel.updateDay0Date(null)
+                    }
+                )
+            }
+
+            if (day0Set) {
+                Spacer(modifier = Modifier.height(12.dp))
+                val dateLabel = SimpleDateFormat("MMM d, yyyy", Locale.getDefault())
+                    .format(Date(viewModel.day0Date!!))
+                OutlinedButton(
+                    onClick = { showDatePicker = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Start date: $dateLabel")
+                }
+            }
+
+            if (showDatePicker) {
+                val datePickerState = rememberDatePickerState(
+                    initialSelectedDateMillis = viewModel.day0Date ?: System.currentTimeMillis()
+                )
+                DatePickerDialog(
+                    onDismissRequest = { showDatePicker = false },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            datePickerState.selectedDateMillis?.let { viewModel.updateDay0Date(it) }
+                            showDatePicker = false
+                        }) { Text("OK") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
+                    }
+                ) {
+                    DatePicker(state = datePickerState)
                 }
             }
         }

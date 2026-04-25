@@ -75,6 +75,17 @@ fun HomeScreen(viewModel: SessionViewModel) {
                 color = MaterialTheme.colorScheme.primary
             )
 
+            if (viewModel.day0Date != null) {
+                val dayNumber = ((currentTime - viewModel.day0Date!!) / (24 * 60 * 60 * 1000L)).toInt().coerceAtLeast(0)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Day $dayNumber",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.secondary
+                )
+            }
+
             if (timeSinceLastSession != null) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(

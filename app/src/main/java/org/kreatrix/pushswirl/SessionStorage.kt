@@ -119,6 +119,19 @@ class SessionStorage(private val context: Context) {
         return prefs.getInt("countdown_interval_minutes", 8 * 60)
     }
 
+    fun saveDay0Date(epochMillis: Long?) {
+        if (epochMillis != null) {
+            prefs.edit().putLong("day0_date", epochMillis).apply()
+        } else {
+            prefs.edit().remove("day0_date").apply()
+        }
+    }
+
+    fun loadDay0Date(): Long? {
+        val v = prefs.getLong("day0_date", -1L)
+        return if (v == -1L) null else v
+    }
+
     fun getLastDepthForSize(size: PhaseSize): Float {
         // Get the last recorded depth from sessions that have depth recorded
         val sessions = loadSessions()
@@ -189,6 +202,7 @@ class SessionStorage(private val context: Context) {
         val exportData = ExportData(
             exportDate = isoFormat.format(Date()),
             appVersion = getAppVersion(),
+            day0Date = loadDay0Date()?.let { isoFormat.format(Date(it)) },
             sessions = sessions.map { it.toExport() }
         )
 
@@ -325,6 +339,14 @@ class SessionStorage(private val context: Context) {
             currentSessions.sortByDescending { it.timestamp }
             saveSessions(currentSessions)
 
+            // Restore Day 0 date if present in the export
+            exportData.day0Date?.let { isoStr ->
+                try {
+                    val isoFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.getDefault())
+                    isoFormat.parse(isoStr)?.time?.let { saveDay0Date(it) }
+                } catch (_: Exception) {}
+            }
+
             ImportResult.Success(importedCount, skippedCount)
         } catch (e: Exception) {
             ImportResult.Error("Import failed: ${e.message}")
@@ -360,11 +382,14 @@ class SessionStorage(private val context: Context) {
 }
 
 /**
- * Wrapper class for export data with metadata
+ * Wrapper class for export data with metadata.
+ * [day0Date] is nullable for backward compatibility —
+ * older exports that lack this field will deserialize it as null.
  */
 data class ExportData(
     val exportDate: String,
     val appVersion: String,
+    val day0Date: String? = null,
     val sessions: List<SessionExport>
 )
 
