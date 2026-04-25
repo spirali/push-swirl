@@ -88,9 +88,14 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
             buildSeries(COLOR_GAP, "Gap", points, points.size > CHART_DENSE_THRESHOLD)
         }
 
-        Pair(ttdSeries, gapSeries)
+        val lengthPoints = sorted.mapIndexed { idx, session ->
+            ChartPoint(sessionX(session, idx), session.totalSeconds.toFloat() / 60f)
+        }
+        val lengthSeries = buildSeries(COLOR_MEDIUM, "Length", lengthPoints, lengthPoints.size > CHART_DENSE_THRESHOLD)
+
+        Triple(ttdSeries, gapSeries, lengthSeries)
     }
-    val (ttdSeries, gapSeries) = chartData
+    val (ttdSeries, gapSeries, lengthSeries) = chartData
 
     val xAxisFormatter: ((Float) -> String)? = if (day0Date != null) { x -> "D${x.toInt()}" } else null
     val xMilestoneInterval: Float? = if (day0Date != null) 30f else null
@@ -178,6 +183,24 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
                             title = "Avg Time Between Sessions",
                             value = formatDurationLong(stats.avgTimeBetweenSessions.toLong())
                         )
+                    }
+
+                    // Session length chart
+                    if (lengthSeries.isNotEmpty()) {
+                        ChartCard(title = "Session Length") {
+                            LineChart(
+                                series = lengthSeries,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(180.dp),
+                                yAxisFormatter = { min ->
+                                    if (min >= 60f) "${(min / 60f).toInt()}h ${(min % 60f).toInt()}m"
+                                    else "${min.toInt()}m"
+                                },
+                                xAxisFormatter = xAxisFormatter,
+                                xMilestoneInterval = xMilestoneInterval
+                            )
+                        }
                     }
 
                     // Time between sessions chart

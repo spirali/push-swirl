@@ -6,6 +6,7 @@
 * When Day 0 is set, show "Day XX" on the main menu screen where XX is number of days from day 0
 * Draws vertical red line in charts for days that are multiple of 30
 * Improved clarity of charts with many points
+* Added "Session length" chart
 
 ## v1.6
 
