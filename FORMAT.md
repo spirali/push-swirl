@@ -30,13 +30,13 @@ The export file is a **UTF-8 encoded JSON** file. It contains metadata about the
 > **Note:** The `SessionConfig` (user settings for that specific session) is not exported directly. Upon import, the app reconstructs the configuration by analyzing the active phases in the list. 
 
 ### Phase Object (`PhaseData`) 
-| Key | Type | Description |
-| :--- | :--- | :--- |
-| `size` | String | The size category (`SMALL`, `MEDIUM`, `LARGE`, `XL`).  |
-| `ttdSeconds` | Long | "Time to Dilation": Seconds taken before the dilation timer started.  |
-| `dilationMinutes` | Integer | The planned duration for this phase in minutes.  |
-| `earlyFinishSecondsRemaining` | Integer? | *Optional.* If the phase was ended early, the number of seconds remaining on the clock.  |
-| `depthCm` | Float? | *Optional.* The recorded depth measurement in centimeters.  |
+| Key | Type | Description                                                                             |
+| :--- | :--- |:----------------------------------------------------------------------------------------|
+| `size` | String | The size category (`SMALL`, `MEDIUM`, `LARGE`, `XL`).                                   |
+| `ttdSeconds` | Long | "TTD": Seconds taken before the dilation timer started.                                 |
+| `dilationMinutes` | Integer | The planned duration for this phase in minutes.                                         |
+| `earlyFinishSecondsRemaining` | Integer? | *Optional.* If the phase was ended early, the number of seconds remaining on the clock. |
+| `depthCm` | Float? | *Optional.* The recorded depth measurement in centimeters.                              |
 
 ---
 

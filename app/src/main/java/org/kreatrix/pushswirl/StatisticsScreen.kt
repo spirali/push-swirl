@@ -20,6 +20,8 @@ private val COLOR_LARGE  = Color(0xFFFFA726)
 private val COLOR_XL     = Color(0xFFAB47BC)
 private val COLOR_GAP    = Color(0xFF26C6DA)
 
+private const val CHART_DENSE_THRESHOLD = 30
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StatisticsScreen(viewModel: SessionViewModel) {
@@ -29,8 +31,10 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
     val selectedInterval = viewModel.statsTimeInterval
     val sessions = viewModel.sessions
 
+    val day0Date = viewModel.day0Date
+
     // Compute filtered + sorted sessions for charts
-    val chartData = remember(sessions, selectedInterval) {
+    val chartData = remember(sessions, selectedInterval, day0Date) {
         val days = selectedInterval.days
         val filtered = if (days == null) sessions
         else {
@@ -39,44 +43,57 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
         }
         val sorted = filtered.sortedBy { it.timestamp }
 
-        val ttdSeries = listOf(
+        fun sessionX(session: Session, idx: Int): Float =
+            if (day0Date != null) (session.timestamp - day0Date) / 86_400_000f
+            else idx.toFloat()
+
+        fun buildSeries(color: Color, label: String, points: List<ChartPoint>, maOnly: Boolean): List<ChartSeries> {
+            if (points.isEmpty()) return emptyList()
+            val maPoints = movingAverage(points)
+            return if (maOnly) {
+                listOf(ChartSeries(color = color, label = label, points = maPoints,
+                    showDots = false, lineAlpha = 1f, lineStrokeMultiplier = 1.6f))
+            } else {
+                listOf(
+                    ChartSeries(color = color, label = label, points = points,
+                        showDots = true, lineAlpha = 0.3f, lineStrokeMultiplier = 0.7f),
+                    ChartSeries(color = color, label = "$label MA", points = maPoints,
+                        showDots = false, lineAlpha = 1f, lineStrokeMultiplier = 1.6f, showInLegend = false)
+                )
+            }
+        }
+
+        val ttdInputs = listOf(
             Triple(PhaseSize.SMALL,  "Small",  COLOR_SMALL),
             Triple(PhaseSize.MEDIUM, "Medium", COLOR_MEDIUM),
             Triple(PhaseSize.LARGE,  "Large",  COLOR_LARGE),
             Triple(PhaseSize.XL,     "XL",     COLOR_XL),
-        ).flatMap { (size, label, color) ->
+        ).map { (size, label, color) ->
             val points = sorted.mapIndexedNotNull { idx, session ->
                 session.phases.find { it.size == size }?.let { phase ->
-                    ChartPoint(idx.toFloat(), phase.ttdSeconds.toFloat())
+                    ChartPoint(sessionX(session, idx), phase.ttdSeconds.toFloat())
                 }
             }
-            if (points.isEmpty()) emptyList()
-            else listOf(
-                ChartSeries(color = color, label = label, points = points,
-                    showDots = true, lineAlpha = 0.3f, lineStrokeMultiplier = 0.7f),
-                ChartSeries(color = color, label = "$label MA", points = movingAverage(points),
-                    showDots = false, lineAlpha = 1f, lineStrokeMultiplier = 1.6f, showInLegend = false)
-            )
+            Triple(color, label, points)
         }
+        val ttdMaOnly = ttdInputs.any { (_, _, points) -> points.size > CHART_DENSE_THRESHOLD }
+        val ttdSeries = ttdInputs.flatMap { (color, label, points) -> buildSeries(color, label, points, ttdMaOnly) }
 
         val gapSeries = if (sorted.size < 2) emptyList()
         else {
-            val points = sorted.zipWithNext { a, b ->
-                (b.timestamp - a.timestamp).toFloat() / 3_600_000f  // hours
-            }.mapIndexed { idx, gapHours ->
-                ChartPoint(idx.toFloat(), gapHours)
+            val points = sorted.indices.drop(1).map { idx ->
+                val gapHours = (sorted[idx].timestamp - sorted[idx - 1].timestamp).toFloat() / 3_600_000f
+                ChartPoint(sessionX(sorted[idx], idx), gapHours)
             }
-            listOf(
-                ChartSeries(color = COLOR_GAP, label = "Gap", points = points,
-                    showDots = true, lineAlpha = 0.3f, lineStrokeMultiplier = 0.7f),
-                ChartSeries(color = COLOR_GAP, label = "Gap MA", points = movingAverage(points),
-                    showDots = false, lineAlpha = 1f, lineStrokeMultiplier = 1.6f, showInLegend = false)
-            )
+            buildSeries(COLOR_GAP, "Gap", points, points.size > CHART_DENSE_THRESHOLD)
         }
 
         Pair(ttdSeries, gapSeries)
     }
     val (ttdSeries, gapSeries) = chartData
+
+    val xAxisFormatter: ((Float) -> String)? = if (day0Date != null) { x -> "D${x.toInt()}" } else null
+    val xMilestoneInterval: Float? = if (day0Date != null) 30f else null
 
     Scaffold(
         topBar = {
@@ -177,7 +194,9 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
                                         h >= 1f  -> "${h.toInt()}h"
                                         else     -> "${(h * 60f).toInt()}m"
                                     }
-                                }
+                                },
+                                xAxisFormatter = xAxisFormatter,
+                                xMilestoneInterval = xMilestoneInterval
                             )
                         }
                     }
@@ -185,7 +204,7 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
                     Spacer(modifier = Modifier.height(4.dp))
 
                     Text(
-                        text = "Average Time to Dilation",
+                        text = "Average TTD",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary,
@@ -199,7 +218,7 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
 
                     // TTD chart
                     if (ttdSeries.isNotEmpty()) {
-                        ChartCard(title = "Time to Dilation") {
+                        ChartCard(title = "TTD") {
                             LineChart(
                                 series = ttdSeries,
                                 modifier = Modifier
@@ -207,7 +226,9 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
                                     .height(180.dp),
                                 yAxisFormatter = { sec ->
                                     if (sec >= 60f) "${(sec / 60f).toInt()}m" else "${sec.toInt()}s"
-                                }
+                                },
+                                xAxisFormatter = xAxisFormatter,
+                                xMilestoneInterval = xMilestoneInterval
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             ChartLegend(series = ttdSeries)

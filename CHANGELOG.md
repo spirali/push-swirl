@@ -4,6 +4,8 @@
 
 * Allow to set "Day 0" (date when it all started); Day 0 is part of the export
 * When Day 0 is set, show "Day XX" on the main menu screen where XX is number of days from day 0
+* Draws vertical red line in charts for days that are multiple of 30
+* Improved clarity of charts with many points
 
 ## v1.6
 

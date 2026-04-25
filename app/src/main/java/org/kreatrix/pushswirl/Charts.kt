@@ -45,7 +45,9 @@ fun movingAverage(points: List<ChartPoint>, window: Int = 3): List<ChartPoint> =
 fun LineChart(
     series: List<ChartSeries>,
     modifier: Modifier = Modifier,
-    yAxisFormatter: (Float) -> String = { "%.0f".format(it) }
+    yAxisFormatter: (Float) -> String = { "%.0f".format(it) },
+    xAxisFormatter: ((Float) -> String)? = null,
+    xMilestoneInterval: Float? = null
 ) {
     val textColor = MaterialTheme.colorScheme.onSurface
     val gridColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
@@ -66,7 +68,7 @@ fun LineChart(
             val leftPad    = with(density) { 68.dp.toPx() }
             val rightPad   = with(density) {  8.dp.toPx() }
             val topPad     = with(density) {  6.dp.toPx() }
-            val botPad     = with(density) { 12.dp.toPx() }
+            val botPad     = with(density) { if (xAxisFormatter != null) 26.dp.toPx() else 12.dp.toPx() }
             val textSizePx = with(density) { 10.sp.toPx() }
             val baseStroke = with(density) {  2.dp.toPx() }
             val dotRadius  = with(density) {  3.dp.toPx() }
@@ -113,6 +115,45 @@ fun LineChart(
                 Offset(chartLeft, chartBottom),
                 1.5f
             )
+
+            // Milestone vertical lines (e.g. every 30 days)
+            if (xMilestoneInterval != null && xMilestoneInterval > 0f) {
+                val firstMilestone = Math.ceil((xMin / xMilestoneInterval).toDouble()).toInt() * xMilestoneInterval
+                var milestone = firstMilestone
+                while (milestone <= xMax) {
+                    val xPixel = mapX(milestone)
+                    drawLine(
+                        color = Color.Red.copy(alpha = 0.5f),
+                        start = Offset(xPixel, chartTop),
+                        end   = Offset(xPixel, chartBottom),
+                        strokeWidth = with(density) { 1.dp.toPx() }
+                    )
+                    milestone += xMilestoneInterval
+                }
+            }
+
+            // X axis labels
+            if (xAxisFormatter != null) {
+                val xPaint = AndroidPaint().apply {
+                    color       = textColor.toArgb()
+                    textSize    = textSizePx
+                    textAlign   = AndroidPaint.Align.CENTER
+                    typeface    = Typeface.DEFAULT
+                    isAntiAlias = true
+                }
+                val tickCount = 5
+                for (i in 0..tickCount) {
+                    val fraction = i.toFloat() / tickCount.toFloat()
+                    val xValue   = xMin + fraction * (xMax - xMin)
+                    val xPixel   = mapX(xValue)
+                    drawContext.canvas.nativeCanvas.drawText(
+                        xAxisFormatter(xValue),
+                        xPixel,
+                        chartBottom + textSizePx * 1.8f,
+                        xPaint
+                    )
+                }
+            }
 
             // Draw lines first, then dots on top
             series.forEach { s ->

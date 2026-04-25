@@ -65,7 +65,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     // Using SystemClock.elapsedRealtime() which continues during sleep
     // ============================================================================
 
-    // TTD (Time To Dilation) - counts UP from 0
+    // TTD (Time To Depth) - counts UP from 0
     var ttdRunning by mutableStateOf(false)
     private var ttdStartTime = 0L           // elapsedRealtime when TTD started
     private var ttdAccumulatedMs = 0L       // accumulated time if paused
