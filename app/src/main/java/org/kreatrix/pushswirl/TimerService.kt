@@ -160,7 +160,7 @@ class TimerService : Service() {
         when (type) {
             NotificationEvent.PUSH_BEGIN -> {
                 playSound(R.raw.beep_long, restore)
-                if (vibrationEnabled) vibrate(longArrayOf(0, 400))
+                if (vibrationEnabled) vibrate(longArrayOf(0, 400, 0, 0))
             }
             NotificationEvent.SWIRL_BEGIN -> {
                 playSound(R.raw.beep_short) { playSound(R.raw.beep_short, restore) }
