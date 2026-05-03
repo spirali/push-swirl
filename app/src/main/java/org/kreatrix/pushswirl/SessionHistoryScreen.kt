@@ -324,6 +324,13 @@ fun SessionCard(session: Session, onDelete: () -> Unit) {
                                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                                 )
                             }
+                            if (phase.actionTime != null) {
+                                Text(
+                                    text = "Actions: ${phase.actionTime}s",
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                                )
+                            }
                         }
 
                         // Display depth if recorded

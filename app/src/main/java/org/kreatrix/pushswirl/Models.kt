@@ -49,7 +49,8 @@ data class PhaseData(
     val size: PhaseSize,
     val ttdSeconds: Long,
     val dilationMinutes: Int,
-    val actionTime: Int,
+    // Nullable for backward compatibility with old sessions that predate action time config
+    val actionTime: Int? = null,
     // Nullable for backward compatibility with old logs
     // If not null, the phase was finished early at this many seconds remaining
     val earlyFinishSecondsRemaining: Int? = null,

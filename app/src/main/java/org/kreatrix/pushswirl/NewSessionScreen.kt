@@ -178,13 +178,12 @@ fun ActionTimeSelector(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            listOf(15, 20, 30).forEach { duration ->
+            listOf(10, 15, 20, 30).forEach { duration ->
                 val isSelected = selected == duration
-                val label = "${duration}"
                 FilterChip(
                     selected = isSelected,
                     onClick = { onSelect(duration) },
-                    label = { Text(label) },
+                    label = { Text("${duration}s") },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = MaterialTheme.colorScheme.primary,
                         selectedLabelColor = MaterialTheme.colorScheme.onPrimary

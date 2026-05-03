@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## v1.8
+
+* Configurable action time (10s, 15s, 20s, 30s); default remains 15s.
+* Action time shown in session history.
+
 ## v1.7
 
 * Allow to set "Day 0" (date when it all started); Day 0 is part of the export.

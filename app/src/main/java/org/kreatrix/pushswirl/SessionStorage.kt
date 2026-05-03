@@ -377,7 +377,7 @@ class SessionStorage(private val context: Context) {
         // Check if any phase has depth recorded
         val hasDepth = phases.any { it.depthCm != null }
 
-        val actionTime = phases[0].actionTime
+        val actionTime = phases.firstOrNull()?.actionTime ?: 15
 
         return SessionConfig(small, medium, large, xl, actionTime, recordDepth = hasDepth)
     }
