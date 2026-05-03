@@ -27,6 +27,7 @@ data class SessionConfig(
     val medium: PhaseDuration = PhaseDuration.FIFTEEN,
     val large: PhaseDuration = PhaseDuration.TEN,
     val xl: PhaseDuration = PhaseDuration.SKIP,
+    val actionTime: Int = 15,
     val recordDepth: Boolean = false
 ) : Parcelable {
     fun getDuration(size: PhaseSize): PhaseDuration {
@@ -48,6 +49,7 @@ data class PhaseData(
     val size: PhaseSize,
     val ttdSeconds: Long,
     val dilationMinutes: Int,
+    val actionTime: Int,
     // Nullable for backward compatibility with old logs
     // If not null, the phase was finished early at this many seconds remaining
     val earlyFinishSecondsRemaining: Int? = null,

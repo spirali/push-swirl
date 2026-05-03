@@ -31,9 +31,6 @@ sealed class SessionState {
 
 class SessionViewModel(application: Application) : AndroidViewModel(application) {
 
-    companion object {
-        const val ACTION_TIME = 15
-    }
     private val storage = SessionStorage(application)
     var currentScreen by mutableStateOf<AppScreen>(AppScreen.Home)
 
@@ -83,7 +80,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     var dilationRemainingSeconds by mutableIntStateOf(0)
         private set
 
-    var actionRemainingSeconds by mutableIntStateOf(ACTION_TIME)
+    var actionRemainingSeconds by mutableIntStateOf(sessionConfig.actionTime)
         private set
 
     // Session tracking
@@ -160,18 +157,18 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     }
 
     private fun calculateActionRemainingSeconds(): Int {
-        if (dilationTotalSeconds == 0) return ACTION_TIME
+        if (dilationTotalSeconds == 0) return sessionConfig.actionTime
         val elapsedMs = calculateDilationElapsedMs()
         val elapsedSeconds = (elapsedMs / 1000).toInt()
-        val intoCurrentAction = elapsedSeconds % ACTION_TIME
-        return ACTION_TIME - intoCurrentAction
+        val intoCurrentAction = elapsedSeconds % sessionConfig.actionTime
+        return sessionConfig.actionTime - intoCurrentAction
     }
 
     private fun calculateCurrentActionIndex(): Int {
         if (dilationTotalSeconds == 0) return 0
         val elapsedMs = calculateDilationElapsedMs()
         val elapsedSeconds = (elapsedMs / 1000).toInt()
-        return elapsedSeconds / ACTION_TIME
+        return elapsedSeconds / sessionConfig.actionTime
     }
 
     // ============================================================================
@@ -315,6 +312,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
             size = phase,
             ttdSeconds = lastTtdSeconds,
             dilationMinutes = plannedMinutes,
+            actionTime = sessionConfig.actionTime,
             earlyFinishSecondsRemaining = plannedMinutes * 60
         ))
         startDilationForCurrentPhase()
@@ -454,6 +452,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
                 size = phase,
                 ttdSeconds = lastTtdSeconds,
                 dilationMinutes = duration.minutes,
+                actionTime = sessionConfig.actionTime,
                 earlyFinishSecondsRemaining = earlyFinishSecondsRemaining
             ))
             sessionState = SessionState.DepthInput(phase)
@@ -471,6 +470,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
                 size = phase,
                 ttdSeconds = lastTtdSeconds,
                 dilationMinutes = duration.minutes,
+                actionTime = sessionConfig.actionTime,
                 earlyFinishSecondsRemaining = earlyFinishSecondsRemaining,
                 depthCm = currentPhaseDepth
             )
@@ -580,6 +580,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
                     size = phase,
                     ttdSeconds = lastTtdSeconds,
                     dilationMinutes = sessionConfig.getDuration(phase).minutes,
+                    actionTime = sessionConfig.actionTime,
                     earlyFinishSecondsRemaining = calculateDilationRemainingSeconds(),
                     depthCm = currentPhaseDepth
                 )
@@ -591,6 +592,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
                     size = phase,
                     ttdSeconds = lastTtdSeconds,
                     dilationMinutes = sessionConfig.getDuration(phase).minutes,
+                    actionTime = sessionConfig.actionTime,
                     earlyFinishSecondsRemaining = earlyFinishSecondsRemaining,
                     depthCm = null
                 )
@@ -627,7 +629,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         dilationStartTime = 0L
         dilationAccumulatedMs = 0L
         dilationRemainingSeconds = 0
-        actionRemainingSeconds = ACTION_TIME
+        actionRemainingSeconds = sessionConfig.actionTime
         dilationPaused = false
         earlyFinishSecondsRemaining = null
         currentPhaseDepth = null

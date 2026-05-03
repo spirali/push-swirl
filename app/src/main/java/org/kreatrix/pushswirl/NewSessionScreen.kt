@@ -21,6 +21,7 @@ fun NewSessionScreen(viewModel: SessionViewModel) {
     var medium by remember { mutableStateOf(viewModel.sessionConfig.medium) }
     var large by remember { mutableStateOf(viewModel.sessionConfig.large) }
     var xl by remember { mutableStateOf(viewModel.sessionConfig.xl) }
+    var actionTime by remember { mutableStateOf(viewModel.sessionConfig.actionTime) }
     var recordDepth by remember { mutableStateOf(viewModel.sessionConfig.recordDepth) }
 
     Scaffold(
@@ -66,6 +67,10 @@ fun NewSessionScreen(viewModel: SessionViewModel) {
 
             Spacer(modifier = Modifier.height(32.dp))
 
+            ActionTimeSelector(actionTime) { actionTime = it }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
             // Record depth checkbox
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -98,7 +103,7 @@ fun NewSessionScreen(viewModel: SessionViewModel) {
 
             Button(
                 onClick = {
-                    val config = SessionConfig(small, medium, large, xl, recordDepth)
+                    val config = SessionConfig(small, medium, large, xl, actionTime, recordDepth)
                     viewModel.updateConfig(config)
                     viewModel.startSession()
                 },
@@ -141,6 +146,41 @@ fun PhaseSelector(
                     else -> "${duration.minutes}"
                 }
 
+                FilterChip(
+                    selected = isSelected,
+                    onClick = { onSelect(duration) },
+                    label = { Text(label) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                    )
+                )
+            }
+        }
+    }
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+fun ActionTimeSelector(
+    selected: Int,
+    onSelect: (Int) -> Unit
+) {
+    Column {
+        Text(
+            text = "Action Time",
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            listOf(15, 20, 30).forEach { duration ->
+                val isSelected = selected == duration
+                val label = "${duration}"
                 FilterChip(
                     selected = isSelected,
                     onClick = { onSelect(duration) },
