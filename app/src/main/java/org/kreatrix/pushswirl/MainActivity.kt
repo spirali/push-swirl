@@ -55,6 +55,7 @@ fun PushSwirlApp() {
                 is AppScreen.SessionHistory -> SessionHistoryScreen(viewModel)
                 is AppScreen.Statistics -> StatisticsScreen(viewModel)
                 is AppScreen.Settings -> SettingsScreen(viewModel)
+                is AppScreen.ImportExport -> ImportExportScreen(viewModel)
             }
         }
     }

@@ -2,11 +2,11 @@
 
 ## v1.8
 
-* Configurable action time (10s, 15s, 20s, 30s); default remains 15s.
-* Action time shown in session history.
+* Added "TTD vs. Session Gap" scatter charts in statistics (one per phase size)
+* Configurable action time (10s, 15s, 20s, 30s); default remains 15s; action time shown in session history.
+* Butterfly app import
 * Updated calls to vibration API; hopefully fixes some reported problems
 * Fixed problem with date picker & time zones
-* Added "TTD vs. Session Gap" scatter charts in statistics (one per phase size)
 * Fixed TTD chart Y-axis labels showing values up to ~1 minute too low due to truncation
 
 ## v1.7

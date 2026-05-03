@@ -1,9 +1,6 @@
 package org.kreatrix.pushswirl
 
-import android.content.Intent
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -11,7 +8,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -22,31 +18,6 @@ import java.util.*
 @Composable
 fun SessionHistoryScreen(viewModel: SessionViewModel) {
     BackHandler { viewModel.navigateTo(AppScreen.Home) }
-
-    val context = LocalContext.current
-    var showDeleteDialog by remember { mutableStateOf(false) }
-    var showExportOptionsDialog by remember { mutableStateOf(false) }
-    var importResultMessage by remember { mutableStateOf<String?>(null) }
-    var exportResultMessage by remember { mutableStateOf<String?>(null) }
-
-    val importLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri ->
-        uri?.let {
-            when (val result = viewModel.importSessions(it)) {
-                is ImportResult.Success -> {
-                    importResultMessage = if (result.skipped > 0) {
-                        "Imported ${result.imported} session(s)\n${result.skipped} duplicate(s) skipped"
-                    } else {
-                        "Successfully imported ${result.imported} session(s)"
-                    }
-                }
-                is ImportResult.Error -> {
-                    importResultMessage = "Import failed: ${result.message}"
-                }
-            }
-        }
-    }
 
     Scaffold(
         topBar = {
@@ -64,150 +35,32 @@ fun SessionHistoryScreen(viewModel: SessionViewModel) {
             )
         }
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            // Action buttons
-            Row(
+        if (viewModel.sessions.isEmpty()) {
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .fillMaxSize()
+                    .padding(padding),
+                contentAlignment = Alignment.Center
             ) {
-                Button(
-                    onClick = { importLauncher.launch("application/json") },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Import")
-                }
-                Button(
-                    onClick = { showExportOptionsDialog = true },
-                    enabled = viewModel.sessions.isNotEmpty(),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Export")
-                }
-                Button(
-                    onClick = { showDeleteDialog = true },
-                    enabled = viewModel.sessions.isNotEmpty(),
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error
-                    )
-                ) {
-                    Text("Clear All")
-                }
+                Text(
+                    text = "No sessions yet",
+                    fontSize = 18.sp,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                )
             }
-
-            if (viewModel.sessions.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "No sessions yet",
-                        fontSize = 18.sp,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                    )
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(viewModel.sessions) { session ->
-                        SessionCard(session, onDelete = { viewModel.deleteSession(session.id) })
-                    }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(viewModel.sessions) { session ->
+                    SessionCard(session, onDelete = { viewModel.deleteSession(session.id) })
                 }
             }
         }
-    }
-
-    if (showDeleteDialog) {
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Delete All Sessions?") },
-            text = { Text("This action cannot be undone.") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.deleteAllSessions()
-                        showDeleteDialog = false
-                    }
-                ) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("Cancel")
-                }
-            }
-        )
-    }
-
-    if (showExportOptionsDialog) {
-        AlertDialog(
-            onDismissRequest = { showExportOptionsDialog = false },
-            title = { Text("Export Data") },
-            text = { Text("Choose how to export your sessions:") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showExportOptionsDialog = false
-                        when (val result = viewModel.saveExportToDownloads()) {
-                            is ExportResult.Success -> exportResultMessage = "Saved to Downloads folder:\n${result.filename}"
-                            is ExportResult.Error -> exportResultMessage = result.message
-                        }
-                    }
-                ) {
-                    Text("Save as file")
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        showExportOptionsDialog = false
-                        val uri = viewModel.exportSessions()
-                        if (uri != null) {
-                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                type = "application/json"
-                                putExtra(Intent.EXTRA_STREAM, uri)
-                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                            }
-                            context.startActivity(Intent.createChooser(shareIntent, "Share Export File"))
-                        }
-                    }
-                ) {
-                    Text("Share")
-                }
-            }
-        )
-    }
-
-    if (importResultMessage != null) {
-        AlertDialog(
-            onDismissRequest = { importResultMessage = null },
-            title = { Text("Import Result") },
-            text = { Text(importResultMessage!!) },
-            confirmButton = {
-                TextButton(onClick = { importResultMessage = null }) { Text("OK") }
-            }
-        )
-    }
-
-    if (exportResultMessage != null) {
-        AlertDialog(
-            onDismissRequest = { exportResultMessage = null },
-            title = { Text("Export Result") },
-            text = { Text(exportResultMessage!!) },
-            confirmButton = {
-                TextButton(onClick = { exportResultMessage = null }) { Text("OK") }
-            }
-        )
     }
 }
 
@@ -264,22 +117,14 @@ fun SessionCard(session: Session, onDelete: () -> Unit) {
                 Spacer(modifier = Modifier.height(12.dp))
 
                 session.phases.forEach { phase ->
-                    Column(
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = phase.size.name,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                // Show early finish indicator
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(text = phase.size.name, fontWeight = FontWeight.Medium)
                                 if (phase.wasFinishedEarly) {
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Surface(
@@ -305,13 +150,11 @@ fun SessionCard(session: Session, onDelete: () -> Unit) {
 
                         Spacer(modifier = Modifier.height(4.dp))
 
-                        // Dilation details row
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             if (phase.wasFinishedEarly) {
-                                // Show actual vs planned time for early finish
                                 Text(
                                     text = "Dilation: ${formatDurationSeconds(phase.actualDilationSeconds)} / ${phase.dilationMinutes}m planned",
                                     fontSize = 13.sp,
@@ -333,24 +176,19 @@ fun SessionCard(session: Session, onDelete: () -> Unit) {
                             }
                         }
 
-                        // Display depth if recorded
                         if (phase.depthCm != null) {
                             Spacer(modifier = Modifier.height(4.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                val depthFormatted = if (phase.depthCm % 1 == 0f) {
-                                    "${phase.depthCm.toInt()} cm"
-                                } else {
-                                    String.format("%.1f cm", phase.depthCm)
-                                }
-                                Text(
-                                    text = "Depth: $depthFormatted",
-                                    fontSize = 13.sp,
-                                    color = MaterialTheme.colorScheme.secondary,
-                                    fontWeight = FontWeight.Medium
-                                )
+                            val depthFormatted = if (phase.depthCm % 1 == 0f) {
+                                "${phase.depthCm.toInt()} cm"
+                            } else {
+                                String.format("%.1f cm", phase.depthCm)
                             }
+                            Text(
+                                text = "Depth: $depthFormatted",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.secondary,
+                                fontWeight = FontWeight.Medium
+                            )
                         }
                     }
                     Spacer(modifier = Modifier.height(12.dp))
@@ -365,19 +203,15 @@ fun SessionCard(session: Session, onDelete: () -> Unit) {
             title = { Text("Delete Session?") },
             text = { Text("This action cannot be undone.") },
             confirmButton = {
-                TextButton(
-                    onClick = {
-                        onDelete()
-                        showDeleteDialog = false
-                    }
-                ) {
+                TextButton(onClick = {
+                    onDelete()
+                    showDeleteDialog = false
+                }) {
                     Text("Delete", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("Cancel")
-                }
+                TextButton(onClick = { showDeleteDialog = false }) { Text("Cancel") }
             }
         )
     }
@@ -391,19 +225,11 @@ private fun formatDate(timestamp: Long): String {
 private fun formatDuration(seconds: Long): String {
     val mins = seconds / 60
     val secs = seconds % 60
-    return if (mins > 0) {
-        "${mins}m ${secs}s"
-    } else {
-        "${secs}s"
-    }
+    return if (mins > 0) "${mins}m ${secs}s" else "${secs}s"
 }
 
 private fun formatDurationSeconds(seconds: Int): String {
     val mins = seconds / 60
     val secs = seconds % 60
-    return if (mins > 0) {
-        "${mins}m ${secs}s"
-    } else {
-        "${secs}s"
-    }
+    return if (mins > 0) "${mins}m ${secs}s" else "${secs}s"
 }

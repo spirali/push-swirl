@@ -354,6 +354,123 @@ class SessionStorage(private val context: Context) {
     }
 
     /**
+     * Import sessions from a Butterfly app CSV export.
+     *
+     * Column mapping:
+     *   Insertion Duration (s)       → TTD for Medium phase; Large TTD is always 0
+     *   Dynamic Medium Duration (s)  → Medium dilation length (rounded to nearest 5/10/15 min)
+     *   Dynamic Large Duration (s)   → Large dilation length (rounded to nearest 5/10/15 min)
+     *   Static Duration (s)          → fallback when Dynamic columns are empty; split equally
+     *   Final Depth                  → depthCm on the Large phase
+     *
+     * Each row gets a stable UUID derived from its Date+StartTime so re-importing the same
+     * file never creates duplicates.
+     */
+    fun importFromButterflyUri(uri: Uri): ImportResult {
+        return try {
+            val lines = context.contentResolver.openInputStream(uri)
+                ?.bufferedReader()?.use { it.readLines() }
+                ?: return ImportResult.Error("Could not read file")
+
+            if (lines.size < 2) return ImportResult.Error("Empty or invalid CSV")
+
+            val currentSessions = loadSessions().toMutableList()
+            val existingIds = currentSessions.map { it.id }.toHashSet()
+            var importedCount = 0
+            var skippedCount = 0
+
+            val dateFmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+
+            for (line in lines.drop(1)) {
+                if (line.isBlank()) continue
+                val f = line.split(",").map { it.trim() }
+                if (f.size < 5) continue
+
+                val dateStr      = f.getOrElse(0) { "" }
+                val startTimeStr = f.getOrElse(1) { "" }
+                val endTimeStr   = f.getOrElse(2) { "" }
+                // f[3] = Type — ignored
+                val insertionSec  = f.getOrElse(4) { "" }.toLongOrNull() ?: 0L
+                val staticSec     = f.getOrElse(5) { "" }.toIntOrNull()
+                val dynMediumSec  = f.getOrElse(6) { "" }.toIntOrNull()
+                val dynLargeSec   = f.getOrElse(7) { "" }.toIntOrNull()
+                val finalDepth    = f.getOrElse(8) { "" }.toFloatOrNull()
+
+                // Stable duplicate-proof ID
+                val id = UUID.nameUUIDFromBytes("butterfly:${dateStr}T${startTimeStr}".toByteArray()).toString()
+                if (id in existingIds) { skippedCount++; continue }
+
+                val timestamp = try {
+                    dateFmt.parse("$dateStr $startTimeStr")?.time ?: continue
+                } catch (_: Exception) { continue }
+
+                val startSec = butterflyTimeToSeconds(startTimeStr)
+                val endSec   = butterflyTimeToSeconds(endTimeStr)
+                val totalSec = if (endSec >= startSec) (endSec - startSec).toLong()
+                               else (endSec + 86400 - startSec).toLong()
+
+                // Determine per-phase durations in seconds
+                val (mediumDurSec, largeDurSec) = when {
+                    dynMediumSec != null || dynLargeSec != null ->
+                        Pair(dynMediumSec ?: 0, dynLargeSec ?: 0)
+                    staticSec != null ->
+                        Pair(staticSec / 2, staticSec / 2)
+                    else -> continue
+                }
+
+                val phases = mutableListOf<PhaseData>()
+                if (mediumDurSec > 0) {
+                    phases += PhaseData(
+                        size = PhaseSize.MEDIUM,
+                        ttdSeconds = insertionSec,
+                        dilationMinutes = nearestPhaseDuration(mediumDurSec).minutes
+                    )
+                }
+                if (largeDurSec > 0) {
+                    phases += PhaseData(
+                        size = PhaseSize.LARGE,
+                        ttdSeconds = 0L,
+                        dilationMinutes = nearestPhaseDuration(largeDurSec).minutes,
+                        depthCm = finalDepth
+                    )
+                }
+                if (phases.isEmpty()) continue
+
+                val session = Session(
+                    id = id,
+                    config = inferConfigFromPhases(phases),
+                    phases = phases,
+                    totalSeconds = totalSec,
+                    timestamp = timestamp
+                )
+                currentSessions += session
+                existingIds += id
+                importedCount++
+            }
+
+            currentSessions.sortByDescending { it.timestamp }
+            saveSessions(currentSessions)
+
+            ImportResult.Success(importedCount, skippedCount)
+        } catch (e: Exception) {
+            ImportResult.Error("Import failed: ${e.message}")
+        }
+    }
+
+    private fun butterflyTimeToSeconds(time: String): Int {
+        val parts = time.split(":")
+        return (parts.getOrNull(0)?.toIntOrNull() ?: 0) * 3600 +
+               (parts.getOrNull(1)?.toIntOrNull() ?: 0) * 60 +
+               (parts.getOrNull(2)?.toIntOrNull() ?: 0)
+    }
+
+    private fun nearestPhaseDuration(seconds: Int): PhaseDuration {
+        val minutes = seconds / 60.0
+        return listOf(PhaseDuration.FIVE, PhaseDuration.TEN, PhaseDuration.FIFTEEN)
+            .minByOrNull { kotlin.math.abs(it.minutes - minutes) }!!
+    }
+
+    /**
      * Infer session config from the phases that were completed.
      * Config is not exported, so it's always reconstructed from phases on import.
      */

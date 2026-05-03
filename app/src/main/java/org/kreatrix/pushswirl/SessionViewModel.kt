@@ -20,6 +20,7 @@ sealed class AppScreen {
     object SessionHistory : AppScreen()
     object Statistics : AppScreen()
     object Settings : AppScreen()
+    object ImportExport : AppScreen()
 }
 
 sealed class SessionState {
@@ -554,7 +555,13 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
      */
     fun importSessions(uri: android.net.Uri): ImportResult {
         val result = storage.importSessionsFromUri(uri)
-        // Reload data after import
+        sessions = storage.loadSessions()
+        stats = storage.calculateStats(statsTimeInterval.days)
+        return result
+    }
+
+    fun importFromButterfly(uri: android.net.Uri): ImportResult {
+        val result = storage.importFromButterflyUri(uri)
         sessions = storage.loadSessions()
         stats = storage.calculateStats(statsTimeInterval.days)
         return result

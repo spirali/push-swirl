@@ -172,6 +172,17 @@ fun HomeScreen(viewModel: SessionViewModel) {
                 Text("Settings", fontSize = 18.sp)
             }
 
+            Spacer(modifier = Modifier.height(16.dp))
+
+            OutlinedButton(
+                onClick = { viewModel.navigateTo(AppScreen.ImportExport) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+            ) {
+                Text("Import / Export", fontSize = 18.sp)
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
 
             Text(
