@@ -186,6 +186,102 @@ fun LineChart(
     }
 }
 
+data class ScatterPoint(val x: Float, val y: Float, val color: Color)
+
+@Composable
+fun ScatterChart(
+    points: List<ScatterPoint>,
+    modifier: Modifier = Modifier,
+    xAxisFormatter: (Float) -> String = { "%.0f".format(it) },
+    yAxisFormatter: (Float) -> String = { "%.0f".format(it) },
+) {
+    val textColor = MaterialTheme.colorScheme.onSurface
+    val gridColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+    val density   = LocalDensity.current
+
+    if (points.isEmpty()) {
+        Box(modifier = modifier, contentAlignment = Alignment.Center) {
+            Text("No data", color = textColor.copy(alpha = 0.4f))
+        }
+        return
+    }
+
+    val xMin = points.minOf { it.x }
+    val xMax = points.maxOf { it.x }.coerceAtLeast(xMin + 1f)
+    val yMax = points.maxOf { it.y }.coerceAtLeast(1f)
+
+    Canvas(modifier = modifier) {
+        val leftPad    = with(density) { 68.dp.toPx() }
+        val rightPad   = with(density) {  8.dp.toPx() }
+        val topPad     = with(density) {  6.dp.toPx() }
+        val botPad     = with(density) { 26.dp.toPx() }
+        val textSizePx = with(density) { 10.sp.toPx() }
+        val dotRadius  = with(density) {  4.dp.toPx() }
+
+        val chartLeft   = leftPad
+        val chartRight  = size.width - rightPad
+        val chartTop    = topPad
+        val chartBottom = size.height - botPad
+        val chartWidth  = chartRight - chartLeft
+        val chartHeight = chartBottom - chartTop
+
+        fun mapX(x: Float): Float =
+            chartLeft + (x - xMin) / (xMax - xMin) * chartWidth
+
+        fun mapY(y: Float): Float = chartBottom - (y / yMax) * chartHeight
+
+        val yPaint = AndroidPaint().apply {
+            color       = textColor.toArgb()
+            textSize    = textSizePx
+            textAlign   = AndroidPaint.Align.RIGHT
+            typeface    = Typeface.DEFAULT
+            isAntiAlias = true
+        }
+        val xPaint = AndroidPaint().apply {
+            color       = textColor.toArgb()
+            textSize    = textSizePx
+            textAlign   = AndroidPaint.Align.CENTER
+            typeface    = Typeface.DEFAULT
+            isAntiAlias = true
+        }
+
+        // Y grid lines + labels
+        for (i in 0..4) {
+            val fraction = i.toFloat() / 4f
+            val yValue   = fraction * yMax
+            val yPixel   = mapY(yValue)
+            drawLine(gridColor, Offset(chartLeft, yPixel), Offset(chartRight, yPixel), 1.5f)
+            drawContext.canvas.nativeCanvas.drawText(
+                yAxisFormatter(yValue),
+                chartLeft - with(density) { 4.dp.toPx() },
+                yPixel + textSizePx / 3f,
+                yPaint
+            )
+        }
+
+        // Left axis line
+        drawLine(gridColor.copy(alpha = 0.5f), Offset(chartLeft, chartTop), Offset(chartLeft, chartBottom), 1.5f)
+
+        // X axis labels
+        val tickCount = 5
+        for (i in 0..tickCount) {
+            val fraction = i.toFloat() / tickCount.toFloat()
+            val xValue   = xMin + fraction * (xMax - xMin)
+            drawContext.canvas.nativeCanvas.drawText(
+                xAxisFormatter(xValue),
+                mapX(xValue),
+                chartBottom + textSizePx * 1.8f,
+                xPaint
+            )
+        }
+
+        // Dots
+        points.forEach { pt ->
+            drawCircle(pt.color, radius = dotRadius, center = Offset(mapX(pt.x), mapY(pt.y)))
+        }
+    }
+}
+
 @Composable
 fun ChartLegend(series: List<ChartSeries>) {
     val visible = series.filter { it.showInLegend }

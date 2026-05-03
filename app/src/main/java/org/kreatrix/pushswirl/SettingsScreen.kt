@@ -14,8 +14,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -235,13 +237,19 @@ fun SettingsScreen(viewModel: SessionViewModel) {
 
             if (showDatePicker) {
                 val datePickerState = rememberDatePickerState(
-                    initialSelectedDateMillis = viewModel.day0Date ?: System.currentTimeMillis()
+                    // DatePicker works in UTC midnight; convert our stored local midnight back to UTC
+                    initialSelectedDateMillis = viewModel.day0Date
+                        ?.let { localMidnightToUtcMidnight(it) }
+                        ?: System.currentTimeMillis()
                 )
                 DatePickerDialog(
                     onDismissRequest = { showDatePicker = false },
                     confirmButton = {
                         TextButton(onClick = {
-                            datePickerState.selectedDateMillis?.let { viewModel.updateDay0Date(it) }
+                            // DatePicker returns UTC midnight; store as local midnight so display
+                            // and day-count calculations use the correct calendar date
+                            datePickerState.selectedDateMillis
+                                ?.let { viewModel.updateDay0Date(utcMidnightToLocalMidnight(it)) }
                             showDatePicker = false
                         }) { Text("OK") }
                     },
@@ -254,4 +262,22 @@ fun SettingsScreen(viewModel: SessionViewModel) {
             }
         }
     }
+}
+
+private fun utcMidnightToLocalMidnight(utcMillis: Long): Long {
+    val utc = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+    utc.timeInMillis = utcMillis
+    return Calendar.getInstance().apply {
+        set(utc.get(Calendar.YEAR), utc.get(Calendar.MONTH), utc.get(Calendar.DAY_OF_MONTH), 0, 0, 0)
+        set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
+}
+
+private fun localMidnightToUtcMidnight(localMillis: Long): Long {
+    val local = Calendar.getInstance()
+    local.timeInMillis = localMillis
+    return Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+        set(local.get(Calendar.YEAR), local.get(Calendar.MONTH), local.get(Calendar.DAY_OF_MONTH), 0, 0, 0)
+        set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
 }

@@ -160,7 +160,7 @@ class TimerService : Service() {
         when (type) {
             NotificationEvent.PUSH_BEGIN -> {
                 playSound(R.raw.beep_long, restore)
-                if (vibrationEnabled) vibrate(longArrayOf(0, 400, 0, 0))
+                if (vibrationEnabled) vibrate(longArrayOf(0, 400))
             }
             NotificationEvent.SWIRL_BEGIN -> {
                 playSound(R.raw.beep_short) { playSound(R.raw.beep_short, restore) }
@@ -187,12 +187,15 @@ class TimerService : Service() {
 
     private fun vibrate(pattern: LongArray) {
         if (!vibrationEnabled) return
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            vibrator?.vibrate(VibrationEffect.createWaveform(pattern, -1))
+        val vib = vibrator ?: return
+        val effect = VibrationEffect.createWaveform(pattern, -1)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val attrs = VibrationAttributes.Builder()
+                .setUsage(VibrationAttributes.USAGE_ALARM)
+                .build()
+            vib.vibrate(effect, attrs)
         } else {
-            @Suppress("DEPRECATION")
-            vibrator?.vibrate(pattern, -1)
+            vib.vibrate(effect)
         }
     }
 

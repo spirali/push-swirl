@@ -1,6 +1,7 @@
 package org.kreatrix.pushswirl
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -96,6 +97,38 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
         Triple(ttdSeries, gapSeries, lengthSeries)
     }
     val (ttdSeries, gapSeries, lengthSeries) = chartData
+
+    // Per-phase scatter: X = gap to previous session (hours), Y = TTD (seconds), color encodes age
+    val ttdGapScatter = remember(sessions, selectedInterval) {
+        val days = selectedInterval.days
+        val filtered = if (days == null) sessions
+        else {
+            val cutoff = System.currentTimeMillis() - days * 24L * 60 * 60 * 1000
+            sessions.filter { it.timestamp >= cutoff }
+        }
+        val sorted = filtered.sortedBy { it.timestamp }
+
+        listOf(
+            Triple(PhaseSize.SMALL,  "Small",  COLOR_SMALL),
+            Triple(PhaseSize.MEDIUM, "Medium", COLOR_MEDIUM),
+            Triple(PhaseSize.LARGE,  "Large",  COLOR_LARGE),
+            Triple(PhaseSize.XL,     "XL",     COLOR_XL),
+        ).mapNotNull { (size, label, color) ->
+            if (sorted.size < 2) return@mapNotNull null
+            val raw = sorted.indices.drop(1).mapNotNull { idx ->
+                val phase = sorted[idx].phases.find { it.size == size } ?: return@mapNotNull null
+                val gapHours = (sorted[idx].timestamp - sorted[idx - 1].timestamp).toFloat() / 3_600_000f
+                Pair(gapHours, phase.ttdSeconds.toFloat())
+            }
+            if (raw.isEmpty()) return@mapNotNull null
+            val n = raw.size
+            val points = raw.mapIndexed { i, (x, y) ->
+                val age = if (n == 1) 1f else i.toFloat() / (n - 1).toFloat()
+                ScatterPoint(x, y, color.copy(alpha = 0.2f + age * 0.8f))
+            }
+            Triple(label, color, points)
+        }
+    }
 
     val xAxisFormatter: ((Float) -> String)? = if (day0Date != null) { x -> "D${x.toInt()}" } else null
     val xMilestoneInterval: Float? = if (day0Date != null) 30f else null
@@ -248,13 +281,68 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
                                     .fillMaxWidth()
                                     .height(180.dp),
                                 yAxisFormatter = { sec ->
-                                    if (sec >= 60f) "${(sec / 60f).toInt()}m" else "${sec.toInt()}s"
+                                    formatTtd(sec)
                                 },
                                 xAxisFormatter = xAxisFormatter,
                                 xMilestoneInterval = xMilestoneInterval
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             ChartLegend(series = ttdSeries)
+                        }
+                    }
+
+                    // TTD vs. Session Gap scatter charts
+                    if (ttdGapScatter.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "TTD vs. Session Gap",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 8.dp)
+                        )
+                        ttdGapScatter.forEach { (label, color, points) ->
+                            ChartCard(title = label) {
+                                ScatterChart(
+                                    points = points,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(180.dp),
+                                    xAxisFormatter = { h ->
+                                        when {
+                                            h >= 24f -> "${(h / 24f).toInt()}d"
+                                            else     -> "${h.toInt()}h"
+                                        }
+                                    },
+                                    yAxisFormatter = { sec ->
+                                        formatTtd(sec)
+                                    }
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Canvas(modifier = Modifier.size(10.dp)) {
+                                            drawCircle(color.copy(alpha = 0.2f))
+                                        }
+                                        Text("Older", style = MaterialTheme.typography.labelMedium)
+                                    }
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Text("Recent", style = MaterialTheme.typography.labelMedium)
+                                        Canvas(modifier = Modifier.size(10.dp)) {
+                                            drawCircle(color)
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -309,6 +397,16 @@ fun StatCard(title: String, value: String) {
                 color = MaterialTheme.colorScheme.primary
             )
         }
+    }
+}
+
+private fun formatTtd(sec: Float): String {
+    val m = (sec / 60).toInt()
+    val s = (sec % 60).toInt()
+    return when {
+        m > 0 && s > 0 -> "${m}m ${s}s"
+        m > 0          -> "${m}m"
+        else           -> "${s}s"
     }
 }
 
