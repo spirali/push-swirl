@@ -87,6 +87,8 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     // Session tracking
     private val completedPhases = mutableStateListOf<PhaseData>()
     private var sessionStartTime = 0L
+    // Captured when dilation ends; keeps totalSeconds from growing while depth input is open
+    private var sessionEndTime = 0L
     private var sessionId = ""
 
     // Store TTD value when finishing (before state changes)
@@ -273,6 +275,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         ttdSeconds = 0L
         earlyFinishSecondsRemaining = null  // Reset early finish tracking
         currentPhaseDepth = null  // Reset depth tracking
+        sessionEndTime = 0L  // Resume live clock for next phase
 
         // Load the last depth for this phase size
         if (sessionConfig.recordDepth) {
@@ -415,11 +418,12 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     private fun saveSessionCheckpoint(currentPartialPhase: PhaseData? = null) {
         val phases = completedPhases.toList() + listOfNotNull(currentPartialPhase)
         if (phases.isEmpty()) return
+        val effectiveEnd = if (sessionEndTime > 0) sessionEndTime else System.currentTimeMillis()
         storage.saveOrUpdateSession(Session(
             id = sessionId,
             config = sessionConfig,
             phases = phases,
-            totalSeconds = (System.currentTimeMillis() - sessionStartTime) / 1000,
+            totalSeconds = (effectiveEnd - sessionStartTime) / 1000,
             timestamp = sessionStartTime
         ))
     }
@@ -444,6 +448,9 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
 
         // Make phase end notification
         timerService?.makeNotification(NotificationEvent.PHASE_END)
+
+        // Freeze the clock here so depth input time is never counted in session length
+        sessionEndTime = System.currentTimeMillis()
 
         // If depth recording is enabled, show depth input before advancing
         if (sessionConfig.recordDepth) {
@@ -492,7 +499,8 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     }
 
     private fun finishSession() {
-        val totalTime = (System.currentTimeMillis() - sessionStartTime) / 1000
+        val effectiveEnd = if (sessionEndTime > 0) sessionEndTime else System.currentTimeMillis()
+        val totalTime = (effectiveEnd - sessionStartTime) / 1000
         val session = Session(
             id = sessionId,
             config = sessionConfig,

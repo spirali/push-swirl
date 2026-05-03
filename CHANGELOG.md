@@ -8,6 +8,7 @@
 * Updated calls to vibration API; hopefully fixes some reported problems
 * Fixed problem with date picker & time zones
 * Fixed TTD chart Y-axis labels showing values up to ~1 minute too low due to truncation
+* Fixed session length being inflated when depth is entered after a delay
 
 ## v1.7
 
