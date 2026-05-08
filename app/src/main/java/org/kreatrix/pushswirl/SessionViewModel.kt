@@ -166,6 +166,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     }
 
     private fun calculateActionRemainingSeconds(): Int {
+        if (sessionConfig.actionTime == 0) return calculateDilationRemainingSeconds()
         if (dilationTotalSeconds == 0) return sessionConfig.actionTime
         val elapsedMs = calculateDilationElapsedMs()
         val elapsedSeconds = (elapsedMs / 1000).toInt()
@@ -174,6 +175,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     }
 
     private fun calculateCurrentActionIndex(): Int {
+        if (sessionConfig.actionTime == 0) return 0
         if (dilationTotalSeconds == 0) return 0
         val elapsedMs = calculateDilationElapsedMs()
         val elapsedSeconds = (elapsedMs / 1000).toInt()

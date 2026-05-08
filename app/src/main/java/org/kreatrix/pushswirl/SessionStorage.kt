@@ -358,8 +358,8 @@ class SessionStorage(private val context: Context) {
      *
      * Column mapping:
      *   Insertion Duration (s)       → TTD for Medium phase; Large TTD is always 0
-     *   Dynamic Medium Duration (s)  → Medium dilation length (rounded to nearest 5/10/15 min)
-     *   Dynamic Large Duration (s)   → Large dilation length (rounded to nearest 5/10/15 min)
+     *   Dynamic Medium Duration (s)  → Medium dilation length (rounded to nearest 5/10/15/30 min)
+     *   Dynamic Large Duration (s)   → Large dilation length (rounded to nearest 5/10/15/30 min)
      *   Static Duration (s)          → fallback when Dynamic columns are empty; split equally
      *   Final Depth                  → depthCm on the Large phase
      *
@@ -466,7 +466,7 @@ class SessionStorage(private val context: Context) {
 
     private fun nearestPhaseDuration(seconds: Int): PhaseDuration {
         val minutes = seconds / 60.0
-        return listOf(PhaseDuration.FIVE, PhaseDuration.TEN, PhaseDuration.FIFTEEN)
+        return listOf(PhaseDuration.FIVE, PhaseDuration.TEN, PhaseDuration.FIFTEEN, PhaseDuration.THIRTY)
             .minByOrNull { kotlin.math.abs(it.minutes - minutes) }!!
     }
 

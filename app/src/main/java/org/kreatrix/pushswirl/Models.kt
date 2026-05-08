@@ -14,7 +14,8 @@ enum class PhaseDuration(val minutes: Int) {
     SKIP(0),
     FIVE(5),
     TEN(10),
-    FIFTEEN(15)
+    FIFTEEN(15),
+    THIRTY(30)
 }
 
 enum class DilationAction {

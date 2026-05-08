@@ -320,39 +320,56 @@ fun DilationView(viewModel: SessionViewModel, phase: PhaseSize, action: Dilation
                 MaterialTheme.colorScheme.secondary
         )
 
+        val isStatic = viewModel.sessionConfig.actionTime == 0
+
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Action countdown (15s)
-        Text(
-            text = formatTime(viewModel.actionRemainingSeconds.toLong()),
-            fontSize = 72.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
-        )
+        if (isStatic) {
+            Text(
+                text = formatTime(viewModel.dilationRemainingSeconds.toLong()),
+                fontSize = 72.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
 
-        Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-        Text(
-            text = "Activity Timer",
-            fontSize = 16.sp,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-        )
+            Text(
+                text = "Remaining",
+                fontSize = 16.sp,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+            )
+        } else {
+            Text(
+                text = formatTime(viewModel.actionRemainingSeconds.toLong()),
+                fontSize = 72.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
 
-        Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-        // Total remaining time
-        Text(
-            text = formatTime(viewModel.dilationRemainingSeconds.toLong()),
-            fontSize = 36.sp,
-            fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.onBackground
-        )
+            Text(
+                text = "Activity Timer",
+                fontSize = 16.sp,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+            )
 
-        Text(
-            text = "Total Remaining",
-            fontSize = 14.sp,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-        )
+            Spacer(modifier = Modifier.height(32.dp))
+
+            Text(
+                text = formatTime(viewModel.dilationRemainingSeconds.toLong()),
+                fontSize = 36.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+
+            Text(
+                text = "Total Remaining",
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+            )
+        }
 
         Spacer(modifier = Modifier.height(24.dp))
 

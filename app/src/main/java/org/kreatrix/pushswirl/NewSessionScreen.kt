@@ -143,7 +143,7 @@ fun PhaseSelector(
                 val isSelected = selected == duration
                 val label = when (duration) {
                     PhaseDuration.SKIP -> "X"
-                    else -> "${duration.minutes}"
+                    else -> "${duration.minutes}m"
                 }
 
                 FilterChip(
@@ -178,12 +178,13 @@ fun ActionTimeSelector(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            listOf(10, 15, 20, 30).forEach { duration ->
+            listOf(0, 10, 15, 20, 30).forEach { duration ->
                 val isSelected = selected == duration
+                val chipLabel = if (duration == 0) "Static" else "${duration}s"
                 FilterChip(
                     selected = isSelected,
                     onClick = { onSelect(duration) },
-                    label = { Text("${duration}s") },
+                    label = { Text(chipLabel) },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = MaterialTheme.colorScheme.primary,
                         selectedLabelColor = MaterialTheme.colorScheme.onPrimary

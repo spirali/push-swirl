@@ -86,40 +86,69 @@ private val Y_TICK_CANDIDATES: List<Float> by lazy {
  * formatter: steps that produce duplicate labels are rejected; same-unit labels preferred.
  * Returns (chartYMax, tickValues) where chartYMax >= dataMax and is a multiple of the step.
  */
-fun niceYTicks(dataMax: Float, formatter: (Float) -> String, targetCount: Int = 5): Pair<Float, List<Float>> {
+private val NICE_MINUTE_LABELS = setOf("1m", "2m", "5m", "10m", "15m")
+private val NICE_HOUR_LABELS   = setOf("1h", "2h", "4h", "8h", "12h")
+
+/**
+ * Picks a nice step size from [Y_TICK_CANDIDATES].
+ * [ticksForStep] generates the tick list for a given step.
+ * [sameUnitLabels] selects which labels participate in the same-unit check
+ * (Y skips the anchored "0x" label; X uses all labels).
+ */
+private fun pickNiceStep(
+    targetCount: Int,
+    fallbackStep: Float,
+    ticksForStep: (Float) -> List<Float>,
+    formatter: (Float) -> String,
+    sameUnitLabels: (List<String>) -> List<String> = { it }
+): Float {
     val validRange = 2..(targetCount + 3)
 
+    fun score(step: Float, penalizeMixedUnit: Boolean): Int {
+        val ticks = ticksForStep(step)
+        if (ticks.size !in validRange) return Int.MAX_VALUE
+        val labels = ticks.map(formatter)
+        if (labels.toSet().size != labels.size) return Int.MAX_VALUE
+        val check = sameUnitLabels(labels)
+        val allH = check.all { 'h' in it }
+        val allM = check.all { 'm' in it && 's' !in it && 'h' !in it }
+        val allS = check.all { 's' in it && 'm' !in it }
+        val allD = check.all { 'd' in it && 'h' !in it }
+        // Restrict to user-friendly step sizes per unit, detected via the step's own label
+        val stepLabel = formatter(step)
+        if (allM && stepLabel !in NICE_MINUTE_LABELS) return Int.MAX_VALUE
+        if (allH && stepLabel !in NICE_HOUR_LABELS)   return Int.MAX_VALUE
+        val sameUnit = allH || allM || allS || allD
+        return (if (penalizeMixedUnit && !sameUnit) 100 else 0) + abs(ticks.size - targetCount) * 10 + ticks.size
+    }
+
+    val preferredStep = Y_TICK_CANDIDATES.minByOrNull { score(it, true) } ?: fallbackStep
+    // If the same-unit winner is too sparse, allow cross-unit steps
+    return if (ticksForStep(preferredStep).size < 4) {
+        Y_TICK_CANDIDATES.minByOrNull { score(it, false) } ?: preferredStep
+    } else preferredStep
+}
+
+fun niceYTicks(dataMax: Float, formatter: (Float) -> String, targetCount: Int = 5): Pair<Float, List<Float>> {
     fun ticksForStep(step: Float): List<Float> {
         val count = ceil(dataMax / step).toInt() + 1
         return generateSequence(0f) { it + step }.take(count).toList()
     }
-
-    fun score(step: Float, penalizeMixedUnit: Boolean): Int {
-        val count = ceil(dataMax / step).toInt() + 1
-        if (count !in validRange) return Int.MAX_VALUE
-        val ticks = ticksForStep(step)
-        val labels = ticks.map(formatter)
-        if (labels.toSet().size != labels.size) return Int.MAX_VALUE
-        val nonZeroLabels = labels.drop(1)
-        val sameUnit = nonZeroLabels.all { 'h' in it } ||
-                       nonZeroLabels.all { 'm' in it && 's' !in it && 'h' !in it } ||
-                       nonZeroLabels.all { 's' in it && 'm' !in it }
-        return (if (penalizeMixedUnit && !sameUnit) 100 else 0) + abs(count - targetCount) * 10 + count
-    }
-
-    val preferredStep = Y_TICK_CANDIDATES.minByOrNull { score(it, penalizeMixedUnit = true) } ?: (dataMax / targetCount)
-    val preferredTicks = ticksForStep(preferredStep)
-
-    // If the same-unit winner is too sparse, allow cross-unit steps
-    val step = if (preferredTicks.size < 4) {
-        Y_TICK_CANDIDATES.minByOrNull { score(it, penalizeMixedUnit = false) } ?: preferredStep
-    } else {
-        preferredStep
-    }
-
+    val step = pickNiceStep(targetCount, dataMax / targetCount, ::ticksForStep, formatter, sameUnitLabels = { it.drop(1) })
     val ticks = ticksForStep(step)
-    val niceMax = ticks.last()
-    return Pair(niceMax, ticks)
+    return Pair(ticks.last(), ticks)
+}
+
+/** Nice X-axis ticks within [xMin]..[xMax]. */
+fun niceXTicks(xMin: Float, xMax: Float, formatter: (Float) -> String, targetCount: Int = 5): List<Float> {
+    val range = xMax - xMin
+    if (range <= 0f) return listOf(xMin)
+    fun ticksForStep(step: Float): List<Float> {
+        val first = ceil(xMin / step) * step
+        return generateSequence(first) { it + step }.takeWhile { it <= xMax + step * 0.001f }.toList()
+    }
+    val step = pickNiceStep(targetCount, range / targetCount, ::ticksForStep, formatter)
+    return ticksForStep(step)
 }
 
 @Composable
@@ -222,14 +251,10 @@ fun LineChart(
                     typeface    = Typeface.DEFAULT
                     isAntiAlias = true
                 }
-                val tickCount = 5
-                for (i in 0..tickCount) {
-                    val fraction = i.toFloat() / tickCount.toFloat()
-                    val xValue   = xMin + fraction * (xMax - xMin)
-                    val xPixel   = mapX(xValue)
+                for (xValue in niceXTicks(xMin, xMax, xAxisFormatter)) {
                     drawContext.canvas.nativeCanvas.drawText(
                         xAxisFormatter(xValue),
-                        xPixel,
+                        mapX(xValue),
                         chartBottom + textSizePx * 1.8f,
                         xPaint
                     )
@@ -345,10 +370,7 @@ fun ScatterChart(
         drawLine(gridColor.copy(alpha = 0.5f), Offset(chartLeft, chartTop), Offset(chartLeft, chartBottom), 1.5f)
 
         // X axis labels
-        val tickCount = 5
-        for (i in 0..tickCount) {
-            val fraction = i.toFloat() / tickCount.toFloat()
-            val xValue   = xMin + fraction * (xMax - xMin)
+        for (xValue in niceXTicks(xMin, xMax, xAxisFormatter)) {
             drawContext.canvas.nativeCanvas.drawText(
                 xAxisFormatter(xValue),
                 mapX(xValue),

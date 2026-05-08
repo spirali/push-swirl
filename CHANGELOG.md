@@ -2,8 +2,10 @@
 
 ## v1.9
 
+* Support for "static" excercise
 * Linear regression trend lines added to all statistics charts
 * TTD chart: toggle individual phase sizes (Small/Medium/Large/XL) on/off
+* Improved and fixed axis labeling
 * Statistics charts now use weighted moving average instead of simple moving average
 
 ## v1.8
