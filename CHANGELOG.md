@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## v1.9
+
+* Statistics charts now use weighted moving average (linearly increasing weights) instead of simple moving average
+
 ## v1.8
 
 * Added "TTD vs. Session Gap" scatter charts in statistics (one per phase size)

@@ -34,11 +34,13 @@ data class ChartSeries(
     val showInLegend: Boolean = true
 )
 
-/** Simple moving average over [window] previous points (inclusive). */
+/** Weighted moving average over [window] previous points (inclusive), with linearly increasing weights. */
 fun movingAverage(points: List<ChartPoint>, window: Int = 3): List<ChartPoint> =
     points.mapIndexed { i, pt ->
         val slice = points.subList(maxOf(0, i - window + 1), i + 1)
-        ChartPoint(pt.x, slice.map { it.y }.average().toFloat())
+        val weights = slice.indices.map { (it + 1).toFloat() }
+        val weightedSum = slice.zip(weights).sumOf { (p, w) -> (p.y * w).toDouble() }.toFloat()
+        ChartPoint(pt.x, weightedSum / weights.sum())
     }
 
 @Composable
