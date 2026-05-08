@@ -247,7 +247,10 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
                                     .fillMaxWidth()
                                     .height(180.dp),
                                 yAxisFormatter = { min ->
-                                    if (min >= 60f) "${(min / 60f).toInt()}h ${(min % 60f).toInt()}m"
+                                    if (min >= 60f) {
+                                        val h = (min / 60f).toInt(); val m = (min % 60f).toInt()
+                                        if (m == 0) "${h}h" else "${h}h ${m}m"
+                                    }
                                     else "${min.toInt()}m"
                                 },
                                 xAxisFormatter = xAxisFormatter,

@@ -15,6 +15,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.*
 
 data class ChartPoint(val x: Float, val y: Float)
 
@@ -67,6 +68,60 @@ fun movingAverage(points: List<ChartPoint>, window: Int = 3): List<ChartPoint> =
         ChartPoint(pt.x, weightedSum / weights.sum())
     }
 
+private val Y_TICK_CANDIDATES: List<Float> by lazy {
+    buildSet<Float> {
+        for (exp in -2..7) {
+            val mag = 10f.pow(exp)
+            add(mag); add(2f * mag); add(5f * mag)
+        }
+        // whole-minute steps in seconds (60 is not a power-of-10 multiple)
+        addAll(listOf(15f, 30f, 60f, 90f, 120f, 180f, 240f, 300f, 600f, 900f, 1800f, 3600f, 7200f, 21600f, 86400f))
+        // sub-hour and multi-hour steps
+        addAll(listOf(0.25f, 0.5f, 0.75f, 1.5f, 2.5f, 3f, 4f, 6f, 8f, 12f, 24f, 48f, 72f))
+    }.filter { it > 0f }.sorted()
+}
+
+/**
+ * Chooses nice Y-axis tick values by trying candidate step sizes and scoring them via the
+ * formatter: steps that produce duplicate labels are rejected; same-unit labels preferred.
+ * Returns (chartYMax, tickValues) where chartYMax >= dataMax and is a multiple of the step.
+ */
+fun niceYTicks(dataMax: Float, formatter: (Float) -> String, targetCount: Int = 5): Pair<Float, List<Float>> {
+    val validRange = 2..(targetCount + 3)
+
+    fun ticksForStep(step: Float): List<Float> {
+        val count = ceil(dataMax / step).toInt() + 1
+        return generateSequence(0f) { it + step }.take(count).toList()
+    }
+
+    fun score(step: Float, penalizeMixedUnit: Boolean): Int {
+        val count = ceil(dataMax / step).toInt() + 1
+        if (count !in validRange) return Int.MAX_VALUE
+        val ticks = ticksForStep(step)
+        val labels = ticks.map(formatter)
+        if (labels.toSet().size != labels.size) return Int.MAX_VALUE
+        val nonZeroLabels = labels.drop(1)
+        val sameUnit = nonZeroLabels.all { 'h' in it } ||
+                       nonZeroLabels.all { 'm' in it && 's' !in it && 'h' !in it } ||
+                       nonZeroLabels.all { 's' in it && 'm' !in it }
+        return (if (penalizeMixedUnit && !sameUnit) 100 else 0) + abs(count - targetCount) * 10 + count
+    }
+
+    val preferredStep = Y_TICK_CANDIDATES.minByOrNull { score(it, penalizeMixedUnit = true) } ?: (dataMax / targetCount)
+    val preferredTicks = ticksForStep(preferredStep)
+
+    // If the same-unit winner is too sparse, allow cross-unit steps
+    val step = if (preferredTicks.size < 4) {
+        Y_TICK_CANDIDATES.minByOrNull { score(it, penalizeMixedUnit = false) } ?: preferredStep
+    } else {
+        preferredStep
+    }
+
+    val ticks = ticksForStep(step)
+    val niceMax = ticks.last()
+    return Pair(niceMax, ticks)
+}
+
 @Composable
 fun LineChart(
     series: List<ChartSeries>,
@@ -89,7 +144,8 @@ fun LineChart(
         val xMin = allPoints.minOf { it.x }
         val xMax = allPoints.maxOf { it.x }
         val scalePoints = series.filter { it.countForYScale }.flatMap { it.points }
-        val yMax = (if (scalePoints.isEmpty()) allPoints else scalePoints).maxOf { it.y }.coerceAtLeast(1f)
+        val dataYMax = (if (scalePoints.isEmpty()) allPoints else scalePoints).maxOf { it.y }.coerceAtLeast(1f)
+        val (chartYMax, yTicks) = niceYTicks(dataYMax, yAxisFormatter)
 
         Canvas(modifier = modifier) {
             val leftPad    = with(density) { 68.dp.toPx() }
@@ -111,7 +167,7 @@ fun LineChart(
                 if (xMax == xMin) chartLeft + chartWidth / 2f
                 else chartLeft + (x - xMin) / (xMax - xMin) * chartWidth
 
-            fun mapY(y: Float): Float = chartBottom - (y / yMax) * chartHeight
+            fun mapY(y: Float): Float = chartBottom - (y / chartYMax) * chartHeight
 
             val paint = AndroidPaint().apply {
                 color       = textColor.toArgb()
@@ -122,10 +178,8 @@ fun LineChart(
             }
 
             // Grid lines + Y axis labels
-            for (i in 0..4) {
-                val fraction = i.toFloat() / 4f
-                val yValue   = fraction * yMax
-                val yPixel   = mapY(yValue)
+            for (yValue in yTicks) {
+                val yPixel = mapY(yValue)
                 drawLine(gridColor, Offset(chartLeft, yPixel), Offset(chartRight, yPixel), 1.5f)
                 drawContext.canvas.nativeCanvas.drawText(
                     yAxisFormatter(yValue),
@@ -237,7 +291,8 @@ fun ScatterChart(
 
     val xMin = points.minOf { it.x }
     val xMax = points.maxOf { it.x }.coerceAtLeast(xMin + 1f)
-    val yMax = points.maxOf { it.y }.coerceAtLeast(1f)
+    val dataYMax = points.maxOf { it.y }.coerceAtLeast(1f)
+    val (chartYMax, yTicks) = niceYTicks(dataYMax, yAxisFormatter)
 
     Canvas(modifier = modifier) {
         val leftPad    = with(density) { 68.dp.toPx() }
@@ -257,7 +312,7 @@ fun ScatterChart(
         fun mapX(x: Float): Float =
             chartLeft + (x - xMin) / (xMax - xMin) * chartWidth
 
-        fun mapY(y: Float): Float = chartBottom - (y / yMax) * chartHeight
+        fun mapY(y: Float): Float = chartBottom - (y / chartYMax) * chartHeight
 
         val yPaint = AndroidPaint().apply {
             color       = textColor.toArgb()
@@ -275,10 +330,8 @@ fun ScatterChart(
         }
 
         // Y grid lines + labels
-        for (i in 0..4) {
-            val fraction = i.toFloat() / 4f
-            val yValue   = fraction * yMax
-            val yPixel   = mapY(yValue)
+        for (yValue in yTicks) {
+            val yPixel = mapY(yValue)
             drawLine(gridColor, Offset(chartLeft, yPixel), Offset(chartRight, yPixel), 1.5f)
             drawContext.canvas.nativeCanvas.drawText(
                 yAxisFormatter(yValue),
