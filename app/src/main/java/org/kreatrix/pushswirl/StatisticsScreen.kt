@@ -11,6 +11,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -33,9 +34,11 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
     val sessions = viewModel.sessions
 
     val day0Date = viewModel.day0Date
+    val onSurface = MaterialTheme.colorScheme.onSurface
+    val ttdVisibleSizes = viewModel.ttdVisibleSizes
 
     // Compute filtered + sorted sessions for charts
-    val chartData = remember(sessions, selectedInterval, day0Date) {
+    val chartData = remember(sessions, selectedInterval, day0Date, onSurface, ttdVisibleSizes) {
         val days = selectedInterval.days
         val filtered = if (days == null) sessions
         else {
@@ -48,19 +51,27 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
             if (day0Date != null) (session.timestamp - day0Date) / 86_400_000f
             else idx.toFloat()
 
-        fun buildSeries(color: Color, label: String, points: List<ChartPoint>, maOnly: Boolean): List<ChartSeries> {
+        val regDash = PathEffect.dashPathEffect(floatArrayOf(20f, 10f))
+
+        fun buildSeries(color: Color, label: String, points: List<ChartPoint>, maOnly: Boolean, regColor: Color = onSurface): List<ChartSeries> {
             if (points.isEmpty()) return emptyList()
-            val maPoints = movingAverage(points)
+            val maPoints  = movingAverage(points)
+            val regPoints = linearRegression(points)
+            val regSeries = if (regPoints != null) listOf(
+                ChartSeries(color = regColor, label = "$label Trend", points = regPoints,
+                    showDots = false, lineAlpha = 0.55f, lineStrokeMultiplier = 1.8f,
+                    showInLegend = false, pathEffect = regDash, countForYScale = false)
+            ) else emptyList()
             return if (maOnly) {
                 listOf(ChartSeries(color = color, label = label, points = maPoints,
-                    showDots = false, lineAlpha = 1f, lineStrokeMultiplier = 1.6f))
+                    showDots = false, lineAlpha = 1f, lineStrokeMultiplier = 1.6f)) + regSeries
             } else {
                 listOf(
                     ChartSeries(color = color, label = label, points = points,
                         showDots = true, lineAlpha = 0.3f, lineStrokeMultiplier = 0.7f),
                     ChartSeries(color = color, label = "$label MA", points = maPoints,
                         showDots = false, lineAlpha = 1f, lineStrokeMultiplier = 1.6f, showInLegend = false)
-                )
+                ) + regSeries
             }
         }
 
@@ -69,7 +80,7 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
             Triple(PhaseSize.MEDIUM, "Medium", COLOR_MEDIUM),
             Triple(PhaseSize.LARGE,  "Large",  COLOR_LARGE),
             Triple(PhaseSize.XL,     "XL",     COLOR_XL),
-        ).map { (size, label, color) ->
+        ).filter { (size, _, _) -> size in ttdVisibleSizes }.map { (size, label, color) ->
             val points = sorted.mapIndexedNotNull { idx, session ->
                 session.phases.find { it.size == size }?.let { phase ->
                     ChartPoint(sessionX(session, idx), phase.ttdSeconds.toFloat())
@@ -78,7 +89,15 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
             Triple(color, label, points)
         }
         val ttdMaOnly = ttdInputs.any { (_, _, points) -> points.size > CHART_DENSE_THRESHOLD }
-        val ttdSeries = ttdInputs.flatMap { (color, label, points) -> buildSeries(color, label, points, ttdMaOnly) }
+        val ttdSeries = ttdInputs.flatMap { (color, label, points) ->
+            val tintedReg = Color(
+                red   = onSurface.red   * 0.55f + color.red   * 0.45f,
+                green = onSurface.green * 0.55f + color.green * 0.45f,
+                blue  = onSurface.blue  * 0.55f + color.blue  * 0.45f,
+                alpha = 1f
+            )
+            buildSeries(color, label, points, ttdMaOnly, regColor = tintedReg)
+        }
 
         val gapSeries = if (sorted.size < 2) emptyList()
         else {
@@ -126,7 +145,8 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
                 val age = if (n == 1) 1f else i.toFloat() / (n - 1).toFloat()
                 ScatterPoint(x, y, color.copy(alpha = 0.2f + age * 0.8f))
             }
-            Triple(label, color, points)
+            val regLine = linearRegression(raw.map { (x, y) -> ChartPoint(x, y) })
+            Triple(label, Pair(color, regLine), points)
         }
     }
 
@@ -273,16 +293,38 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
                     if (stats.xlTTD     > 0) StatCard(title = "XL",     value = formatDuration(stats.xlTTD.toLong()))
 
                     // TTD chart
-                    if (ttdSeries.isNotEmpty()) {
-                        ChartCard(title = "TTD") {
+                    ChartCard(title = "TTD") {
+                        val ttdSizeEntries = listOf(
+                            Triple(PhaseSize.SMALL,  "Small",  COLOR_SMALL),
+                            Triple(PhaseSize.MEDIUM, "Medium", COLOR_MEDIUM),
+                            Triple(PhaseSize.LARGE,  "Large",  COLOR_LARGE),
+                            Triple(PhaseSize.XL,     "XL",     COLOR_XL),
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            ttdSizeEntries.forEach { (size, label, color) ->
+                                val selected = size in ttdVisibleSizes
+                                FilterChip(
+                                    selected = selected,
+                                    onClick = { viewModel.toggleTtdSize(size) },
+                                    label = { Text(label) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = color.copy(alpha = 0.25f),
+                                        selectedLabelColor = color
+                                    )
+                                )
+                            }
+                        }
+                        if (ttdSeries.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(8.dp))
                             LineChart(
                                 series = ttdSeries,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(180.dp),
-                                yAxisFormatter = { sec ->
-                                    formatTtd(sec)
-                                },
+                                yAxisFormatter = { sec -> formatTtd(sec) },
                                 xAxisFormatter = xAxisFormatter,
                                 xMilestoneInterval = xMilestoneInterval
                             )
@@ -301,7 +343,8 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
                             color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.padding(horizontal = 8.dp)
                         )
-                        ttdGapScatter.forEach { (label, color, points) ->
+                        ttdGapScatter.forEach { (label, colorAndReg, points) ->
+                            val (color, regLine) = colorAndReg
                             ChartCard(title = label) {
                                 ScatterChart(
                                     points = points,
@@ -316,7 +359,8 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
                                     },
                                     yAxisFormatter = { sec ->
                                         formatTtd(sec)
-                                    }
+                                    },
+                                    regressionLine = regLine
                                 )
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Row(

@@ -19,10 +19,12 @@ import androidx.compose.ui.unit.sp
 data class ChartPoint(val x: Float, val y: Float)
 
 /**
- * @param showDots      whether to draw a circle at each data point
- * @param lineAlpha     opacity of the connecting line (1f = fully opaque)
- * @param lineStrokeMultiplier  relative thickness of the line (base stroke × this)
- * @param showInLegend  whether this series appears in the legend
+ * @param showDots             whether to draw a circle at each data point
+ * @param lineAlpha            opacity of the connecting line (1f = fully opaque)
+ * @param lineStrokeMultiplier relative thickness of the line (base stroke × this)
+ * @param showInLegend         whether this series appears in the legend
+ * @param pathEffect           optional dash/dot pattern for the line
+ * @param countForYScale       whether these points contribute to the y-axis max (set false for regression lines)
  */
 data class ChartSeries(
     val color: Color,
@@ -31,8 +33,30 @@ data class ChartSeries(
     val showDots: Boolean = true,
     val lineAlpha: Float = 1f,
     val lineStrokeMultiplier: Float = 1f,
-    val showInLegend: Boolean = true
+    val showInLegend: Boolean = true,
+    val pathEffect: PathEffect? = null,
+    val countForYScale: Boolean = true
 )
+
+/** Ordinary least-squares regression line; returns the two endpoints at xMin and xMax, or null if fewer than 2 points. */
+fun linearRegression(points: List<ChartPoint>): List<ChartPoint>? {
+    if (points.size < 2) return null
+    val n = points.size.toDouble()
+    val sumX  = points.sumOf { it.x.toDouble() }
+    val sumY  = points.sumOf { it.y.toDouble() }
+    val sumXY = points.sumOf { it.x.toDouble() * it.y }
+    val sumX2 = points.sumOf { it.x.toDouble() * it.x }
+    val denom = n * sumX2 - sumX * sumX
+    if (denom == 0.0) return null
+    val slope     = (n * sumXY - sumX * sumY) / denom
+    val intercept = (sumY - slope * sumX) / n
+    val xMin = points.minOf { it.x }
+    val xMax = points.maxOf { it.x }
+    return listOf(
+        ChartPoint(xMin, (intercept + slope * xMin).toFloat()),
+        ChartPoint(xMax, (intercept + slope * xMax).toFloat())
+    )
+}
 
 /** Weighted moving average over [window] previous points (inclusive), with linearly increasing weights. */
 fun movingAverage(points: List<ChartPoint>, window: Int = 3): List<ChartPoint> =
@@ -64,7 +88,8 @@ fun LineChart(
     } else {
         val xMin = allPoints.minOf { it.x }
         val xMax = allPoints.maxOf { it.x }
-        val yMax = allPoints.maxOf { it.y }.coerceAtLeast(1f)
+        val scalePoints = series.filter { it.countForYScale }.flatMap { it.points }
+        val yMax = (if (scalePoints.isEmpty()) allPoints else scalePoints).maxOf { it.y }.coerceAtLeast(1f)
 
         Canvas(modifier = modifier) {
             val leftPad    = with(density) { 68.dp.toPx() }
@@ -170,9 +195,10 @@ fun LineChart(
                         path  = path,
                         color = s.color.copy(alpha = s.lineAlpha),
                         style = Stroke(
-                            width = baseStroke * s.lineStrokeMultiplier,
-                            cap   = StrokeCap.Round,
-                            join  = StrokeJoin.Round
+                            width      = baseStroke * s.lineStrokeMultiplier,
+                            cap        = StrokeCap.Round,
+                            join       = StrokeJoin.Round,
+                            pathEffect = s.pathEffect
                         )
                     )
                 }
@@ -196,6 +222,7 @@ fun ScatterChart(
     modifier: Modifier = Modifier,
     xAxisFormatter: (Float) -> String = { "%.0f".format(it) },
     yAxisFormatter: (Float) -> String = { "%.0f".format(it) },
+    regressionLine: List<ChartPoint>? = null,
 ) {
     val textColor = MaterialTheme.colorScheme.onSurface
     val gridColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
@@ -280,6 +307,26 @@ fun ScatterChart(
         // Dots
         points.forEach { pt ->
             drawCircle(pt.color, radius = dotRadius, center = Offset(mapX(pt.x), mapY(pt.y)))
+        }
+
+        // Regression line
+        if (regressionLine != null && regressionLine.size >= 2) {
+            val r0 = regressionLine.first()
+            val r1 = regressionLine.last()
+            val baseStroke = with(density) { 2.dp.toPx() }
+            drawLine(
+                color       = textColor.copy(alpha = 0.65f),
+                start       = Offset(
+                    mapX(r0.x).coerceIn(chartLeft, chartRight),
+                    mapY(r0.y).coerceIn(chartTop, chartBottom)
+                ),
+                end         = Offset(
+                    mapX(r1.x).coerceIn(chartLeft, chartRight),
+                    mapY(r1.y).coerceIn(chartTop, chartBottom)
+                ),
+                strokeWidth = baseStroke * 1.5f,
+                pathEffect  = PathEffect.dashPathEffect(floatArrayOf(20f, 10f))
+            )
         }
     }
 }

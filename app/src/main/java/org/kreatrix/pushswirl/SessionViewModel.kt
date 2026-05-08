@@ -134,6 +134,12 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         stats = storage.calculateStats(interval.days)
     }
 
+    var ttdVisibleSizes by mutableStateOf(PhaseSize.entries.toSet())
+
+    fun toggleTtdSize(size: PhaseSize) {
+        ttdVisibleSizes = if (size in ttdVisibleSizes) ttdVisibleSizes - size else ttdVisibleSizes + size
+    }
+
     // ============================================================================
     // HELPER FUNCTIONS - calculate time from absolute clock
     // ============================================================================

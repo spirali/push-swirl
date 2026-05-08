@@ -2,7 +2,9 @@
 
 ## v1.9
 
-* Statistics charts now use weighted moving average (linearly increasing weights) instead of simple moving average
+* Linear regression trend lines added to all statistics charts
+* TTD chart: toggle individual phase sizes (Small/Medium/Large/XL) on/off
+* Statistics charts now use weighted moving average instead of simple moving average
 
 ## v1.8
 
