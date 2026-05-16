@@ -1,6 +1,7 @@
 package org.kreatrix.pushswirl
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -23,6 +24,7 @@ fun NewSessionScreen(viewModel: SessionViewModel) {
     var xl by remember { mutableStateOf(viewModel.sessionConfig.xl) }
     var actionTime by remember { mutableStateOf(viewModel.sessionConfig.actionTime) }
     var recordDepth by remember { mutableStateOf(viewModel.sessionConfig.recordDepth) }
+    var selectedTab by remember { mutableStateOf(0) }
 
     Scaffold(
         topBar = {
@@ -44,63 +46,7 @@ fun NewSessionScreen(viewModel: SessionViewModel) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(24.dp)
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.Start
         ) {
-            Text(
-                text = "Phases",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            PhaseSelector("Small", small) { small = it }
-            Spacer(modifier = Modifier.height(12.dp))
-            PhaseSelector("Medium", medium) { medium = it }
-            Spacer(modifier = Modifier.height(12.dp))
-            PhaseSelector("Large", large) { large = it }
-            Spacer(modifier = Modifier.height(12.dp))
-            PhaseSelector("XL", xl) { xl = it }
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            ActionTimeSelector(actionTime) { actionTime = it }
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            // Record depth checkbox
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = "Record Reached Depth",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                Checkbox(
-                    checked = recordDepth,
-                    onCheckedChange = { recordDepth = it },
-                    colors = CheckboxDefaults.colors(
-                        checkedColor = MaterialTheme.colorScheme.primary
-                    )
-                )
-            }
-
-//            Text(
-//                text = "Record the reached depth",
-//                fontSize = 14.sp,
-//                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
-//                modifier = Modifier.padding(start = 0.dp, top = 4.dp)
-//            )
-
-            Spacer(modifier = Modifier.height(32.dp))
-
             Button(
                 onClick = {
                     val config = SessionConfig(small, medium, large, xl, actionTime, recordDepth)
@@ -109,6 +55,7 @@ fun NewSessionScreen(viewModel: SessionViewModel) {
                 },
                 modifier = Modifier
                     .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 16.dp)
                     .height(56.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary
@@ -116,12 +63,74 @@ fun NewSessionScreen(viewModel: SessionViewModel) {
             ) {
                 Text("Start Session", fontSize = 18.sp)
             }
+
+            TabRow(selectedTabIndex = selectedTab) {
+                Tab(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    text = { Text("Phases") }
+                )
+                Tab(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    text = { Text("Others") }
+                )
+            }
+
+            when (selectedTab) {
+                0 -> Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(24.dp)
+                        .verticalScroll(rememberScrollState()),
+                    horizontalAlignment = Alignment.Start
+                ) {
+                    PhaseSelector("Small", small) { small = it }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    PhaseSelector("Medium", medium) { medium = it }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    PhaseSelector("Large", large) { large = it }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    PhaseSelector("XL", xl) { xl = it }
+                }
+                1 -> Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(24.dp)
+                        .verticalScroll(rememberScrollState()),
+                    horizontalAlignment = Alignment.Start
+                ) {
+                    ActionTimeSelector(actionTime) { actionTime = it }
+
+                    Spacer(modifier = Modifier.height(32.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Record Reached Depth",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Checkbox(
+                            checked = recordDepth,
+                            onCheckedChange = { recordDepth = it },
+                            colors = CheckboxDefaults.colors(
+                                checkedColor = MaterialTheme.colorScheme.primary
+                            )
+                        )
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 fun PhaseSelector(
     label: String,
     selected: PhaseDuration,
@@ -135,13 +144,14 @@ fun PhaseSelector(
             color = MaterialTheme.colorScheme.onBackground
         )
         Spacer(modifier = Modifier.height(8.dp))
-        Row(
+        FlowRow(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             PhaseDuration.entries.forEach { duration ->
                 val isSelected = selected == duration
-                val label = when (duration) {
+                val chipLabel = when (duration) {
                     PhaseDuration.SKIP -> "X"
                     else -> "${duration.minutes}m"
                 }
@@ -149,7 +159,7 @@ fun PhaseSelector(
                 FilterChip(
                     selected = isSelected,
                     onClick = { onSelect(duration) },
-                    label = { Text(label) },
+                    label = { Text(chipLabel) },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = MaterialTheme.colorScheme.primary,
                         selectedLabelColor = MaterialTheme.colorScheme.onPrimary
@@ -161,7 +171,7 @@ fun PhaseSelector(
 }
 
 @Composable
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 fun ActionTimeSelector(
     selected: Int,
     onSelect: (Int) -> Unit
@@ -174,9 +184,10 @@ fun ActionTimeSelector(
             color = MaterialTheme.colorScheme.onBackground
         )
         Spacer(modifier = Modifier.height(8.dp))
-        Row(
+        FlowRow(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             listOf(0, 10, 15, 20, 30).forEach { duration ->
                 val isSelected = selected == duration

@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## v1.10
+
+* Optimiation of "New session screen" for smaller devices
+
 ## v1.9
 
 * Support for "static" excercise
