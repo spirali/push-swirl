@@ -106,9 +106,15 @@ data class Milestone(
     val comment: String = ""
 )
 
+enum class SoundMode { OFF, SYSTEM, MANUAL }
+enum class VibrationMode { OFF, SYSTEM, MANUAL }
+
 data class NotificationSettings(
-    val vibrationEnabled: Boolean = true,
-    val soundEnabled: Boolean = true,
-    // null = use current system volume; 0f..1f = fraction of hardware max volume
-    val volumeLevel: Float? = null
-)
+    val soundMode: SoundMode = SoundMode.SYSTEM,
+    val vibrationMode: VibrationMode = VibrationMode.SYSTEM,
+    val volumeLevel: Float = 0.5f,
+    val vibrationAmplitude: Float = 1.0f
+) {
+    val soundEnabled: Boolean get() = soundMode != SoundMode.OFF
+    val vibrationEnabled: Boolean get() = vibrationMode != VibrationMode.OFF
+}

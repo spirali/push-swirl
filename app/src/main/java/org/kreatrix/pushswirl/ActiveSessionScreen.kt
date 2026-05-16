@@ -3,7 +3,6 @@ package org.kreatrix.pushswirl
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
-import android.media.AudioManager
 import android.view.WindowManager
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
@@ -15,7 +14,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.getValue
@@ -296,6 +294,8 @@ fun DepthInputView(viewModel: SessionViewModel, phase: PhaseSize) {
 @OptIn(ExperimentalMaterial3Api::class)
 fun DilationView(viewModel: SessionViewModel, phase: PhaseSize, action: DilationAction) {
     var showEarlyFinishDialog by remember { mutableStateOf(false) }
+    var showSoundDialog by remember { mutableStateOf(false) }
+    var showVibrationDialog by remember { mutableStateOf(false) }
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -388,105 +388,41 @@ fun DilationView(viewModel: SessionViewModel, phase: PhaseSize, action: Dilation
         // Notification controls
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Vibration toggle
-            FilterChip(
-                selected = viewModel.notificationSettings.vibrationEnabled,
-                onClick = {
-                    viewModel.updateNotificationSettings(
-                        viewModel.notificationSettings.copy(
-                            vibrationEnabled = !viewModel.notificationSettings.vibrationEnabled
-                        )
-                    )
-                },
-                label = { Text("Vibration") },
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = MaterialTheme.colorScheme.primary,
-                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary
-                ),
-                modifier = Modifier.weight(1f)
-            )
-
-            // Sound toggle
-            FilterChip(
-                selected = viewModel.notificationSettings.soundEnabled,
-                onClick = {
-                    viewModel.updateNotificationSettings(
-                        viewModel.notificationSettings.copy(
-                            soundEnabled = !viewModel.notificationSettings.soundEnabled
-                        )
-                    )
-                },
-                label = { Text("Sound") },
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = MaterialTheme.colorScheme.primary,
-                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary
-                ),
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        // Volume control (only when sound is enabled)
-        if (viewModel.notificationSettings.soundEnabled) {
-            val audioManager = LocalContext.current.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-            val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-            val sysVol = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
-            val systemFraction = if (maxVol > 0) sysVol.toFloat() / maxVol else 1f
-
-            val customVolume = viewModel.notificationSettings.volumeLevel
-            val sliderValue = customVolume ?: systemFraction
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "Volume",
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onBackground
+            Button(
+                onClick = { showVibrationDialog = true },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (viewModel.notificationSettings.vibrationEnabled)
+                        MaterialTheme.colorScheme.primary
+                    else
+                        MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = if (viewModel.notificationSettings.vibrationEnabled)
+                        MaterialTheme.colorScheme.onPrimary
+                    else
+                        MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        if (customVolume != null) "${(sliderValue * 100).roundToInt()}%" else "System",
-                        fontSize = 14.sp,
-                        color = if (customVolume != null)
-                            MaterialTheme.colorScheme.primary
-                        else
-                            MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                    )
-                    TextButton(
-                        onClick = {
-                            viewModel.updateNotificationSettings(
-                                viewModel.notificationSettings.copy(volumeLevel = null)
-                            )
-                        },
-                        enabled = customVolume != null,
-                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
-                        modifier = Modifier.alpha(if (customVolume != null) 1f else 0f)
-                    ) {
-                        Text("Reset", fontSize = 12.sp)
-                    }
-                }
+            ) {
+                Text("Vibration")
             }
 
-            Slider(
-                value = sliderValue,
-                onValueChange = { newValue ->
-                    viewModel.updateNotificationSettings(
-                        viewModel.notificationSettings.copy(volumeLevel = newValue)
-                    )
-                },
-                valueRange = 0f..1f,
-                modifier = Modifier.fillMaxWidth()
-            )
+            Button(
+                onClick = { showSoundDialog = true },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (viewModel.notificationSettings.soundEnabled)
+                        MaterialTheme.colorScheme.primary
+                    else
+                        MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = if (viewModel.notificationSettings.soundEnabled)
+                        MaterialTheme.colorScheme.onPrimary
+                    else
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            ) {
+                Text("Sound")
+            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -551,6 +487,142 @@ fun DilationView(viewModel: SessionViewModel, phase: PhaseSize, action: Dilation
             }
         )
     }
+
+    if (showSoundDialog) {
+        SoundSettingsDialog(
+            settings = viewModel.notificationSettings,
+            onSettingsChange = { viewModel.updateNotificationSettings(it) },
+            onDismiss = { showSoundDialog = false }
+        )
+    }
+
+    if (showVibrationDialog) {
+        VibrationSettingsDialog(
+            settings = viewModel.notificationSettings,
+            onSettingsChange = { viewModel.updateNotificationSettings(it) },
+            onDismiss = { showVibrationDialog = false }
+        )
+    }
+}
+
+@Composable
+private fun SoundSettingsDialog(
+    settings: NotificationSettings,
+    onSettingsChange: (NotificationSettings) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var local by remember { mutableStateOf(settings) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Sound") },
+        text = {
+            Column {
+                listOf(
+                    SoundMode.OFF to "Off",
+                    SoundMode.SYSTEM to "On - System Setting",
+                    SoundMode.MANUAL to "On - Manual Volume"
+                ).forEach { (mode, label) ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = local.soundMode == mode,
+                            onClick = { local = local.copy(soundMode = mode) }
+                        )
+                        Text(label, modifier = Modifier.padding(start = 4.dp))
+                    }
+                }
+                if (local.soundMode == SoundMode.MANUAL) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Volume", fontSize = 14.sp)
+                        Text("${(local.volumeLevel * 100).roundToInt()}%", fontSize = 14.sp)
+                    }
+                    Slider(
+                        value = local.volumeLevel,
+                        onValueChange = { local = local.copy(volumeLevel = it) },
+                        valueRange = 0f..1f,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                onSettingsChange(local)
+                onDismiss()
+            }) { Text("OK") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+@Composable
+private fun VibrationSettingsDialog(
+    settings: NotificationSettings,
+    onSettingsChange: (NotificationSettings) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var local by remember { mutableStateOf(settings) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Vibration") },
+        text = {
+            Column {
+                listOf(
+                    VibrationMode.OFF to "Off",
+                    VibrationMode.SYSTEM to "On - System Setting",
+                    VibrationMode.MANUAL to "On - Manual Amplitude"
+                ).forEach { (mode, label) ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = local.vibrationMode == mode,
+                            onClick = { local = local.copy(vibrationMode = mode) }
+                        )
+                        Text(label, modifier = Modifier.padding(start = 4.dp))
+                    }
+                }
+                if (local.vibrationMode == VibrationMode.MANUAL) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Amplitude", fontSize = 14.sp)
+                        Text("${(local.vibrationAmplitude * 100).roundToInt()}%", fontSize = 14.sp)
+                    }
+                    Slider(
+                        value = local.vibrationAmplitude,
+                        onValueChange = { local = local.copy(vibrationAmplitude = it) },
+                        valueRange = 0f..1f,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                onSettingsChange(local)
+                onDismiss()
+            }) { Text("OK") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }
 
 private fun formatTime(seconds: Long): String {

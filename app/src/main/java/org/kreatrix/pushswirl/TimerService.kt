@@ -31,9 +31,10 @@ class TimerService : Service() {
 
     private val binder = TimerBinder()
     private var vibrator: Vibrator? = null
-    private var vibrationEnabled = true
-    private var soundEnabled = true
-    private var customVolume: Float? = null
+    private var soundMode = SoundMode.SYSTEM
+    private var vibrationMode = VibrationMode.SYSTEM
+    private var volumeLevel = 0.5f
+    private var vibrationAmplitude = 1.0f
 
     inner class TimerBinder : Binder() {
         fun getService(): TimerService = this@TimerService
@@ -64,10 +65,10 @@ class TimerService : Service() {
                 updateNotification()
             }
             else -> {
-                vibrationEnabled = intent?.getBooleanExtra("vibrationEnabled", true) ?: true
-                soundEnabled = intent?.getBooleanExtra("soundEnabled", true) ?: true
-                val vol = intent?.getFloatExtra("volumeLevel", -1f) ?: -1f
-                customVolume = if (vol < 0f) null else vol
+                soundMode = intent?.getStringExtra("soundMode")?.let { SoundMode.valueOf(it) } ?: SoundMode.SYSTEM
+                vibrationMode = intent?.getStringExtra("vibrationMode")?.let { VibrationMode.valueOf(it) } ?: VibrationMode.SYSTEM
+                volumeLevel = intent?.getFloatExtra("volumeLevel", 0.5f) ?: 0.5f
+                vibrationAmplitude = intent?.getFloatExtra("vibrationAmplitude", 1.0f) ?: 1.0f
                 isRunning = true
                 startForeground(1, createNotification())
             }
@@ -76,9 +77,10 @@ class TimerService : Service() {
     }
 
     fun updateNotificationSettings(settings: NotificationSettings) {
-        vibrationEnabled = settings.vibrationEnabled
-        soundEnabled = settings.soundEnabled
-        customVolume = settings.volumeLevel
+        soundMode = settings.soundMode
+        vibrationMode = settings.vibrationMode
+        volumeLevel = settings.volumeLevel
+        vibrationAmplitude = settings.vibrationAmplitude
     }
 
     private fun createNotificationChannel() {
@@ -96,11 +98,18 @@ class TimerService : Service() {
     }
 
     private fun createNotification(): Notification {
+        val openIntent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val openPendingIntent = PendingIntent.getActivity(
+            this, 0, openIntent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
         val pauseIntent = Intent(this, TimerService::class.java).apply {
             action = if (isPaused) ACTION_RESUME else ACTION_PAUSE
         }
         val pausePendingIntent = PendingIntent.getService(
-            this, 0, pauseIntent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            this, 1, pauseIntent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
         val text = when {
@@ -116,6 +125,7 @@ class TimerService : Service() {
             .setContentText(text)
             .setSmallIcon(android.R.drawable.ic_menu_recent_history)
             .setOngoing(true)
+            .setContentIntent(openPendingIntent)
             .addAction(
                 android.R.drawable.ic_media_pause,
                 if (isPaused) "Resume" else "Pause",
@@ -138,7 +148,7 @@ class TimerService : Service() {
     }
 
     private fun playSound(resId: Int, onComplete: (() -> Unit)? = null) {
-        if (!soundEnabled) {
+        if (soundMode == SoundMode.OFF) {
             onComplete?.invoke()
             return
         }
@@ -160,15 +170,15 @@ class TimerService : Service() {
         when (type) {
             NotificationEvent.PUSH_BEGIN -> {
                 playSound(R.raw.beep_long, restore)
-                if (vibrationEnabled) vibrate(longArrayOf(0, 400))
+                if (vibrationMode != VibrationMode.OFF) vibrate(longArrayOf(0, 400))
             }
             NotificationEvent.SWIRL_BEGIN -> {
                 playSound(R.raw.beep_short) { playSound(R.raw.beep_short, restore) }
-                if (vibrationEnabled) vibrate(longArrayOf(0, 200, 200, 200))
+                if (vibrationMode != VibrationMode.OFF) vibrate(longArrayOf(0, 200, 200, 200))
             }
             NotificationEvent.PHASE_END -> {
                 playSound(R.raw.finish, restore)
-                if (vibrationEnabled) vibrate(longArrayOf(0, 400, 200, 400, 200, 400))
+                if (vibrationMode != VibrationMode.OFF) vibrate(longArrayOf(0, 400, 200, 400, 200, 400))
             }
         }
     }
@@ -176,19 +186,24 @@ class TimerService : Service() {
     // Sets the stream volume to the user-configured level and returns a lambda that restores
     // the original volume. Returns null when using system volume (nothing to restore).
     private fun applyCustomVolume(): (() -> Unit)? {
-        val vol = customVolume ?: return null
+        if (soundMode != SoundMode.MANUAL) return null
         val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
         val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
         val originalVol = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
-        val targetVol = (vol * maxVol).roundToInt().coerceIn(0, maxVol)
+        val targetVol = (volumeLevel * maxVol).roundToInt().coerceIn(0, maxVol)
         audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, targetVol, 0)
         return { audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, originalVol, 0) }
     }
 
     private fun vibrate(pattern: LongArray) {
-        if (!vibrationEnabled) return
+        if (vibrationMode == VibrationMode.OFF) return
         val vib = vibrator ?: return
-        val effect = VibrationEffect.createWaveform(pattern, -1)
+        val effect = if (vibrationMode == VibrationMode.MANUAL) {
+            val amp = (vibrationAmplitude * 255).roundToInt().coerceIn(1, 255)
+            VibrationEffect.createWaveform(pattern, IntArray(pattern.size) { i -> if (i % 2 == 1) amp else 0 }, -1)
+        } else {
+            VibrationEffect.createWaveform(pattern, -1)
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             val attrs = VibrationAttributes.Builder()
                 .setUsage(VibrationAttributes.USAGE_ALARM)

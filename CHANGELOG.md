@@ -6,7 +6,9 @@
 * Improvement in charts visualization and linear regression computing when milestones are defined
 * History allows to edit records
 * Sorting history by date/length/ttds
-* Optimiation of "New session screen" for smaller devices
+* New sound/vibration settings
+* Click on notification puts the app into the foreground.
+* Optimization of "New session screen" for smaller devices
 
 ## v1.9
 

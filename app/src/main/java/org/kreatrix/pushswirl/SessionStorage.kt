@@ -75,15 +75,26 @@ class SessionStorage(private val context: Context) {
 
     fun saveNotificationSettings(settings: NotificationSettings) {
         prefs.edit()
-            .putBoolean("notification_vibration", settings.vibrationEnabled)
-            .putBoolean("notification_sound", settings.soundEnabled)
+            .putString("notification_sound_mode", settings.soundMode.name)
+            .putString("notification_vibration_mode", settings.vibrationMode.name)
+            .putFloat("notification_volume", settings.volumeLevel)
+            .putFloat("notification_vibration_amplitude", settings.vibrationAmplitude)
             .apply()
     }
 
     fun loadNotificationSettings(): NotificationSettings {
-        val vibration = prefs.getBoolean("notification_vibration", true)
-        val sound = prefs.getBoolean("notification_sound", true)
-        return NotificationSettings(vibration, sound)
+        val soundModeStr = prefs.getString("notification_sound_mode", null)
+        val vibModeStr = prefs.getString("notification_vibration_mode", null)
+        val soundMode = if (soundModeStr != null) SoundMode.valueOf(soundModeStr)
+                        else if (prefs.getBoolean("notification_sound", true)) SoundMode.SYSTEM else SoundMode.OFF
+        val vibMode = if (vibModeStr != null) VibrationMode.valueOf(vibModeStr)
+                      else if (prefs.getBoolean("notification_vibration", true)) VibrationMode.SYSTEM else VibrationMode.OFF
+        return NotificationSettings(
+            soundMode = soundMode,
+            vibrationMode = vibMode,
+            volumeLevel = prefs.getFloat("notification_volume", 0.5f),
+            vibrationAmplitude = prefs.getFloat("notification_vibration_amplitude", 1.0f)
+        )
     }
 
     fun saveKeepScreenOn(enabled: Boolean) {

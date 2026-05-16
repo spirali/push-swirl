@@ -311,9 +311,10 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
 
         // Start service
         val intent = Intent(getApplication(), TimerService::class.java).apply {
-            putExtra("vibrationEnabled", notificationSettings.vibrationEnabled)
-            putExtra("soundEnabled", notificationSettings.soundEnabled)
-            putExtra("volumeLevel", notificationSettings.volumeLevel ?: -1f)
+            putExtra("soundMode", notificationSettings.soundMode.name)
+            putExtra("vibrationMode", notificationSettings.vibrationMode.name)
+            putExtra("volumeLevel", notificationSettings.volumeLevel)
+            putExtra("vibrationAmplitude", notificationSettings.vibrationAmplitude)
         }
         getApplication<Application>().startService(intent)
         getApplication<Application>().bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
