@@ -10,7 +10,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -24,6 +26,22 @@ private val COLOR_GAP    = Color(0xFF26C6DA)
 
 private const val CHART_DENSE_THRESHOLD = 30
 
+private val SPLIT_PALETTE = listOf(
+    Color(0xFF42A5F5), Color(0xFFEF5350), Color(0xFF66BB6A),
+    Color(0xFFFFA726), Color(0xFFAB47BC), Color(0xFF26C6DA),
+)
+private val SPLIT_SHAPES = listOf(
+    ScatterShape.CIRCLE, ScatterShape.SQUARE, ScatterShape.TRIANGLE, ScatterShape.DIAMOND
+)
+
+private data class ScatterData(
+    val label: String,
+    val baseColor: Color,
+    val points: List<ScatterPoint>,
+    val regressionLines: List<Pair<Color, List<ChartPoint>>>,
+    val splitLegend: List<Triple<Color, ScatterShape, String>>?  // null = show age gradient legend
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StatisticsScreen(viewModel: SessionViewModel) {
@@ -34,11 +52,12 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
     val sessions = viewModel.sessions
 
     val day0Date = viewModel.day0Date
+    val milestones = viewModel.milestones
     val onSurface = MaterialTheme.colorScheme.onSurface
     val ttdVisibleSizes = viewModel.ttdVisibleSizes
 
     // Compute filtered + sorted sessions for charts
-    val chartData = remember(sessions, selectedInterval, day0Date, onSurface, ttdVisibleSizes) {
+    val chartData = remember(sessions, selectedInterval, day0Date, onSurface, ttdVisibleSizes, milestones) {
         val days = selectedInterval.days
         val filtered = if (days == null) sessions
         else {
@@ -53,15 +72,30 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
 
         val regDash = PathEffect.dashPathEffect(floatArrayOf(20f, 10f))
 
+        // Split boundaries in X-axis units (days from day0); single all-encompassing split when not applicable
+        val splitBoundaries: List<Float> = if (day0Date != null && milestones.isNotEmpty())
+            milestones.map { (it.date - day0Date) / 86_400_000f }.sorted()
+        else emptyList()
+        val splits: List<Pair<Float, Float>> = if (splitBoundaries.isEmpty()) {
+            listOf(Pair(-Float.MAX_VALUE, Float.MAX_VALUE))
+        } else {
+            buildList {
+                add(Pair(-Float.MAX_VALUE, splitBoundaries[0]))
+                for (i in 0 until splitBoundaries.size - 1) add(Pair(splitBoundaries[i], splitBoundaries[i + 1]))
+                add(Pair(splitBoundaries.last(), Float.MAX_VALUE))
+            }
+        }
+
         fun buildSeries(color: Color, label: String, points: List<ChartPoint>, maOnly: Boolean, regColor: Color = onSurface): List<ChartSeries> {
             if (points.isEmpty()) return emptyList()
             val maPoints  = movingAverage(points)
-            val regPoints = linearRegression(points)
-            val regSeries = if (regPoints != null) listOf(
-                ChartSeries(color = regColor, label = "$label Trend", points = regPoints,
+            val regSeries = splits.flatMap { (start, end) ->
+                val splitPts = points.filter { it.x >= start && it.x < end }
+                val regPoints = linearRegression(splitPts) ?: return@flatMap emptyList<ChartSeries>()
+                listOf(ChartSeries(color = regColor, label = "$label Trend", points = regPoints,
                     showDots = false, lineAlpha = 0.55f, lineStrokeMultiplier = 1.8f,
-                    showInLegend = false, pathEffect = regDash, countForYScale = false)
-            ) else emptyList()
+                    showInLegend = false, pathEffect = regDash, countForYScale = false))
+            }
             return if (maOnly) {
                 listOf(ChartSeries(color = color, label = label, points = maPoints,
                     showDots = false, lineAlpha = 1f, lineStrokeMultiplier = 1.6f)) + regSeries
@@ -117,8 +151,8 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
     }
     val (ttdSeries, gapSeries, lengthSeries) = chartData
 
-    // Per-phase scatter: X = gap to previous session (hours), Y = TTD (seconds), color encodes age
-    val ttdGapScatter = remember(sessions, selectedInterval) {
+    // Per-phase scatter: X = gap to previous session (hours), Y = TTD (seconds)
+    val ttdGapScatter: List<ScatterData> = remember(sessions, selectedInterval, day0Date, milestones) {
         val days = selectedInterval.days
         val filtered = if (days == null) sessions
         else {
@@ -126,6 +160,18 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
             sessions.filter { it.timestamp >= cutoff }
         }
         val sorted = filtered.sortedBy { it.timestamp }
+
+        val scatterBoundaries: List<Float> = if (day0Date != null && milestones.isNotEmpty())
+            milestones.map { (it.date - day0Date) / 86_400_000f }.sorted()
+        else emptyList()
+        val isMultiSplit = scatterBoundaries.isNotEmpty()
+        val numSplits = scatterBoundaries.size + 1
+
+        fun sessionSplitIdx(timestamp: Long): Int {
+            if (!isMultiSplit || day0Date == null) return 0
+            val dayX = (timestamp - day0Date) / 86_400_000f
+            return scatterBoundaries.count { dayX >= it }
+        }
 
         listOf(
             Triple(PhaseSize.SMALL,  "Small",  COLOR_SMALL),
@@ -137,21 +183,51 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
             val raw = sorted.indices.drop(1).mapNotNull { idx ->
                 val phase = sorted[idx].phases.find { it.size == size } ?: return@mapNotNull null
                 val gapHours = (sorted[idx].timestamp - sorted[idx - 1].timestamp).toFloat() / 3_600_000f
-                Pair(gapHours, phase.ttdSeconds.toFloat())
+                Triple(gapHours, phase.ttdSeconds.toFloat(), sessionSplitIdx(sorted[idx].timestamp))
             }
             if (raw.isEmpty()) return@mapNotNull null
             val n = raw.size
-            val points = raw.mapIndexed { i, (x, y) ->
-                val age = if (n == 1) 1f else i.toFloat() / (n - 1).toFloat()
-                ScatterPoint(x, y, color.copy(alpha = 0.2f + age * 0.8f))
+
+            val points = if (isMultiSplit) {
+                raw.map { (x, y, splitIdx) ->
+                    ScatterPoint(x, y,
+                        color = SPLIT_PALETTE[splitIdx % SPLIT_PALETTE.size].copy(alpha = 0.4f),
+                        shape = SPLIT_SHAPES[splitIdx % SPLIT_SHAPES.size]
+                    )
+                }
+            } else {
+                raw.mapIndexed { i, (x, y, _) ->
+                    val age = if (n == 1) 1f else i.toFloat() / (n - 1).toFloat()
+                    ScatterPoint(x, y, color.copy(alpha = 0.15f + age * 0.55f))
+                }
             }
-            val regLine = linearRegression(raw.map { (x, y) -> ChartPoint(x, y) })
-            Triple(label, Pair(color, regLine), points)
+
+            val regressionLines = (0 until numSplits).mapNotNull { splitIdx ->
+                val splitPts = raw.filter { (_, _, s) -> s == splitIdx }.map { (x, y, _) -> ChartPoint(x, y) }
+                val reg = linearRegression(splitPts) ?: return@mapNotNull null
+                val regColor = if (isMultiSplit) SPLIT_PALETTE[splitIdx % SPLIT_PALETTE.size] else color
+                Pair(regColor, reg)
+            }
+
+            val splitLegend: List<Triple<Color, ScatterShape, String>>? = if (isMultiSplit)
+                (0 until numSplits).map { i ->
+                    val rangeLabel = when {
+                        i == 0 -> "D0-D${scatterBoundaries[0].toInt()}"
+                        i == numSplits - 1 -> "D${scatterBoundaries[i - 1].toInt()}+"
+                        else -> "D${scatterBoundaries[i - 1].toInt()}-D${scatterBoundaries[i].toInt()}"
+                    }
+                    Triple(SPLIT_PALETTE[i % SPLIT_PALETTE.size], SPLIT_SHAPES[i % SPLIT_SHAPES.size], rangeLabel)
+                }
+            else null
+
+            ScatterData(label, color, points, regressionLines, splitLegend)
         }
     }
 
     val xAxisFormatter: ((Float) -> String)? = if (day0Date != null) { x -> "D${x.toInt()}" } else null
-    val xMilestoneInterval: Float? = if (day0Date != null) 30f else null
+    val xMilestonePositions = if (day0Date != null)
+        milestones.map { (it.date - day0Date) / 86_400_000f }
+    else emptyList()
 
     Scaffold(
         topBar = {
@@ -254,7 +330,7 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
                                     else "${min.toInt()}m"
                                 },
                                 xAxisFormatter = xAxisFormatter,
-                                xMilestoneInterval = xMilestoneInterval
+                                xMilestonePositions = xMilestonePositions
                             )
                         }
                     }
@@ -275,7 +351,7 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
                                     }
                                 },
                                 xAxisFormatter = xAxisFormatter,
-                                xMilestoneInterval = xMilestoneInterval
+                                xMilestonePositions = xMilestonePositions
                             )
                         }
                     }
@@ -329,7 +405,7 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
                                     .height(180.dp),
                                 yAxisFormatter = { sec -> formatTtd(sec) },
                                 xAxisFormatter = xAxisFormatter,
-                                xMilestoneInterval = xMilestoneInterval
+                                xMilestonePositions = xMilestonePositions
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             ChartLegend(series = ttdSeries)
@@ -346,11 +422,10 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
                             color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.padding(horizontal = 8.dp)
                         )
-                        ttdGapScatter.forEach { (label, colorAndReg, points) ->
-                            val (color, regLine) = colorAndReg
-                            ChartCard(title = label) {
+                        ttdGapScatter.forEach { scatter ->
+                            ChartCard(title = scatter.label) {
                                 ScatterChart(
-                                    points = points,
+                                    points = scatter.points,
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(180.dp),
@@ -360,32 +435,64 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
                                             else     -> "${h.toInt()}h"
                                         }
                                     },
-                                    yAxisFormatter = { sec ->
-                                        formatTtd(sec)
-                                    },
-                                    regressionLine = regLine
+                                    yAxisFormatter = { sec -> formatTtd(sec) },
+                                    regressionLines = scatter.regressionLines
                                 )
                                 Spacer(modifier = Modifier.height(6.dp))
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
+                                if (scatter.splitLegend != null) {
                                     Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Canvas(modifier = Modifier.size(10.dp)) {
-                                            drawCircle(color.copy(alpha = 0.2f))
+                                        scatter.splitLegend.forEach { (splitColor, splitShape, splitLabel) ->
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                Canvas(modifier = Modifier.size(10.dp)) {
+                                                    val r = size.minDimension / 2f
+                                                    val cx = r; val cy = r
+                                                    when (splitShape) {
+                                                        ScatterShape.CIRCLE -> drawCircle(splitColor, r, Offset(cx, cy))
+                                                        ScatterShape.SQUARE -> drawPath(Path().apply {
+                                                            moveTo(0f, 0f); lineTo(size.width, 0f)
+                                                            lineTo(size.width, size.height); lineTo(0f, size.height); close()
+                                                        }, splitColor)
+                                                        ScatterShape.TRIANGLE -> drawPath(Path().apply {
+                                                            moveTo(cx, 0f); lineTo(size.width, size.height); lineTo(0f, size.height); close()
+                                                        }, splitColor)
+                                                        ScatterShape.DIAMOND -> drawPath(Path().apply {
+                                                            moveTo(cx, 0f); lineTo(size.width, cy); lineTo(cx, size.height); lineTo(0f, cy); close()
+                                                        }, splitColor)
+                                                    }
+                                                }
+                                                Text(splitLabel, style = MaterialTheme.typography.labelMedium)
+                                            }
                                         }
-                                        Text("Older", style = MaterialTheme.typography.labelMedium)
                                     }
+                                } else {
                                     Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
-                                        Text("Recent", style = MaterialTheme.typography.labelMedium)
-                                        Canvas(modifier = Modifier.size(10.dp)) {
-                                            drawCircle(color)
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Canvas(modifier = Modifier.size(10.dp)) {
+                                                drawCircle(scatter.baseColor.copy(alpha = 0.2f))
+                                            }
+                                            Text("Older", style = MaterialTheme.typography.labelMedium)
+                                        }
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Text("Recent", style = MaterialTheme.typography.labelMedium)
+                                            Canvas(modifier = Modifier.size(10.dp)) {
+                                                drawCircle(scatter.baseColor)
+                                            }
                                         }
                                     }
                                 }

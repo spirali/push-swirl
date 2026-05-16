@@ -2,6 +2,8 @@
 
 ## v1.10
 
+* You can define "milestones" in your progress.
+* Improvement in charts visualization and linear regression computing when milestones are defined
 * Optimiation of "New session screen" for smaller devices
 
 ## v1.9

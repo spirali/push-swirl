@@ -157,7 +157,7 @@ fun LineChart(
     modifier: Modifier = Modifier,
     yAxisFormatter: (Float) -> String = { "%.0f".format(it) },
     xAxisFormatter: ((Float) -> String)? = null,
-    xMilestoneInterval: Float? = null
+    xMilestonePositions: List<Float> = emptyList()
 ) {
     val textColor = MaterialTheme.colorScheme.onSurface
     val gridColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
@@ -226,19 +226,15 @@ fun LineChart(
                 1.5f
             )
 
-            // Milestone vertical lines (e.g. every 30 days)
-            if (xMilestoneInterval != null && xMilestoneInterval > 0f) {
-                val firstMilestone = Math.ceil((xMin / xMilestoneInterval).toDouble()).toInt() * xMilestoneInterval
-                var milestone = firstMilestone
-                while (milestone <= xMax) {
-                    val xPixel = mapX(milestone)
+            // Milestone vertical lines
+            for (pos in xMilestonePositions) {
+                if (pos in xMin..xMax) {
                     drawLine(
                         color = Color.Red.copy(alpha = 0.5f),
-                        start = Offset(xPixel, chartTop),
-                        end   = Offset(xPixel, chartBottom),
+                        start = Offset(mapX(pos), chartTop),
+                        end   = Offset(mapX(pos), chartBottom),
                         strokeWidth = with(density) { 1.dp.toPx() }
                     )
-                    milestone += xMilestoneInterval
                 }
             }
 
@@ -293,7 +289,9 @@ fun LineChart(
     }
 }
 
-data class ScatterPoint(val x: Float, val y: Float, val color: Color)
+enum class ScatterShape { CIRCLE, SQUARE, TRIANGLE, DIAMOND }
+
+data class ScatterPoint(val x: Float, val y: Float, val color: Color, val shape: ScatterShape = ScatterShape.CIRCLE)
 
 @Composable
 fun ScatterChart(
@@ -301,7 +299,7 @@ fun ScatterChart(
     modifier: Modifier = Modifier,
     xAxisFormatter: (Float) -> String = { "%.0f".format(it) },
     yAxisFormatter: (Float) -> String = { "%.0f".format(it) },
-    regressionLine: List<ChartPoint>? = null,
+    regressionLines: List<Pair<Color, List<ChartPoint>>> = emptyList(),
 ) {
     val textColor = MaterialTheme.colorScheme.onSurface
     val gridColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
@@ -381,27 +379,47 @@ fun ScatterChart(
 
         // Dots
         points.forEach { pt ->
-            drawCircle(pt.color, radius = dotRadius, center = Offset(mapX(pt.x), mapY(pt.y)))
+            val cx = mapX(pt.x); val cy = mapY(pt.y)
+            when (pt.shape) {
+                ScatterShape.CIRCLE -> drawCircle(pt.color, dotRadius, Offset(cx, cy))
+                ScatterShape.SQUARE -> drawPath(Path().apply {
+                    moveTo(cx - dotRadius, cy - dotRadius)
+                    lineTo(cx + dotRadius, cy - dotRadius)
+                    lineTo(cx + dotRadius, cy + dotRadius)
+                    lineTo(cx - dotRadius, cy + dotRadius)
+                    close()
+                }, pt.color)
+                ScatterShape.TRIANGLE -> drawPath(Path().apply {
+                    moveTo(cx, cy - dotRadius * 1.2f)
+                    lineTo(cx + dotRadius, cy + dotRadius * 0.8f)
+                    lineTo(cx - dotRadius, cy + dotRadius * 0.8f)
+                    close()
+                }, pt.color)
+                ScatterShape.DIAMOND -> drawPath(Path().apply {
+                    moveTo(cx, cy - dotRadius * 1.2f)
+                    lineTo(cx + dotRadius * 1.1f, cy)
+                    lineTo(cx, cy + dotRadius * 1.2f)
+                    lineTo(cx - dotRadius * 1.1f, cy)
+                    close()
+                }, pt.color)
+            }
         }
 
-        // Regression line
-        if (regressionLine != null && regressionLine.size >= 2) {
-            val r0 = regressionLine.first()
-            val r1 = regressionLine.last()
-            val baseStroke = with(density) { 2.dp.toPx() }
-            drawLine(
-                color       = textColor.copy(alpha = 0.65f),
-                start       = Offset(
-                    mapX(r0.x).coerceIn(chartLeft, chartRight),
-                    mapY(r0.y).coerceIn(chartTop, chartBottom)
-                ),
-                end         = Offset(
-                    mapX(r1.x).coerceIn(chartLeft, chartRight),
-                    mapY(r1.y).coerceIn(chartTop, chartBottom)
-                ),
-                strokeWidth = baseStroke * 1.5f,
-                pathEffect  = PathEffect.dashPathEffect(floatArrayOf(20f, 10f))
-            )
+        // Regression lines extended to full chart X range
+        val baseStroke = with(density) { 2.dp.toPx() }
+        regressionLines.forEach { (regColor, regLine) ->
+            if (regLine.size >= 2) {
+                val r0 = regLine.first(); val r1 = regLine.last()
+                val slope = if (r1.x != r0.x) (r1.y - r0.y) / (r1.x - r0.x) else 0f
+                val intercept = r0.y - slope * r0.x
+                drawLine(
+                    color       = regColor.copy(alpha = 0.9f),
+                    start       = Offset(chartLeft, mapY(intercept + slope * xMin).coerceIn(chartTop, chartBottom)),
+                    end         = Offset(chartRight, mapY(intercept + slope * xMax).coerceIn(chartTop, chartBottom)),
+                    strokeWidth = baseStroke * 2.5f,
+                    pathEffect  = PathEffect.dashPathEffect(floatArrayOf(20f, 10f))
+                )
+            }
         }
     }
 }

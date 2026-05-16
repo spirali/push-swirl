@@ -47,6 +47,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     var countdownEnabled by mutableStateOf(storage.loadCountdownEnabled())
     var countdownIntervalMinutes by mutableIntStateOf(storage.loadCountdownIntervalMinutes())
     var day0Date by mutableStateOf(storage.loadDay0Date())
+    var milestones by mutableStateOf(storage.loadMilestones())
 
     // Active session state
     var sessionState by mutableStateOf<SessionState>(SessionState.Idle)
@@ -233,6 +234,18 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     fun updateDay0Date(epochMillis: Long?) {
         day0Date = epochMillis
         storage.saveDay0Date(epochMillis)
+    }
+
+    fun addMilestone(milestone: Milestone) {
+        val updated = (milestones + milestone).sortedBy { it.date }
+        milestones = updated
+        storage.saveMilestones(updated)
+    }
+
+    fun removeMilestone(milestone: Milestone) {
+        val updated = milestones - milestone
+        milestones = updated
+        storage.saveMilestones(updated)
     }
 
     // ============================================================================

@@ -9,7 +9,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -82,64 +85,173 @@ fun SettingsScreen(viewModel: SessionViewModel) {
                         .padding(24.dp)
                         .verticalScroll(rememberScrollState())
                 ) {
-                    var showDatePicker by remember { mutableStateOf(false) }
-                    val day0Set = viewModel.day0Date != null
+                    var showDay0Picker by remember { mutableStateOf(false) }
+                    var showMilestonePicker by remember { mutableStateOf(false) }
+                    var pendingMilestoneDate by remember { mutableStateOf<Long?>(null) }
+                    var pendingComment by remember { mutableStateOf("") }
+                    val day0Date = viewModel.day0Date
+                    val dateFormat = remember { SimpleDateFormat("MMM d, yyyy", Locale.getDefault()) }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Day 0", fontSize = 16.sp)
-                            Text(
-                                "When it all started",
-                                fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                            )
-                        }
-                        Checkbox(
-                            checked = day0Set,
-                            onCheckedChange = { checked ->
-                                if (checked) showDatePicker = true
-                                else viewModel.updateDay0Date(null)
-                            }
-                        )
-                    }
-
-                    if (day0Set) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        val dateLabel = SimpleDateFormat("MMM d, yyyy", Locale.getDefault())
-                            .format(Date(viewModel.day0Date!!))
-                        OutlinedButton(
-                            onClick = { showDatePicker = true },
+                    if (day0Date == null) {
+                        Button(
+                            onClick = { showDay0Picker = true },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("Start date: $dateLabel")
+                            Text("Set Day 0", fontSize = 16.sp)
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "Day when it all started",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    } else {
+                        Text(
+                            text = buildAnnotatedString {
+                                withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))) {
+                                    append("Day 0: ")
+                                }
+                                withStyle(SpanStyle(color = MaterialTheme.colorScheme.primary)) {
+                                    append(dateFormat.format(Date(day0Date)))
+                                }
+                            },
+                            fontSize = 32.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            OutlinedButton(onClick = { showDay0Picker = true }) {
+                                Text("Select date")
+                            }
+                            OutlinedButton(onClick = { viewModel.updateDay0Date(null) }) {
+                                Text("Forget date")
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(32.dp))
+                        Divider()
+                        Spacer(modifier = Modifier.height(24.dp))
+
+                        Text(
+                            text = "Milestones",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(bottom = 12.dp)
+                        )
+
+                        viewModel.milestones.forEach { milestone ->
+                            val dayNumber = ((milestone.date - day0Date) / (1000L * 60 * 60 * 24)).toInt()
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = buildAnnotatedString {
+                                            withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))) {
+                                                append("Day $dayNumber: ")
+                                            }
+                                            withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurface)) {
+                                                append(dateFormat.format(Date(milestone.date)))
+                                            }
+                                        },
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    if (milestone.comment.isNotBlank()) {
+                                        Text(
+                                            text = milestone.comment,
+                                            fontSize = 13.sp,
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                        )
+                                    }
+                                }
+                                TextButton(onClick = { viewModel.removeMilestone(milestone) }) {
+                                    Text("Remove", color = MaterialTheme.colorScheme.error)
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedButton(
+                            onClick = { showMilestonePicker = true },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Add milestone")
                         }
                     }
 
-                    if (showDatePicker) {
+                    if (showDay0Picker) {
                         val datePickerState = rememberDatePickerState(
-                            initialSelectedDateMillis = viewModel.day0Date
+                            initialSelectedDateMillis = day0Date
                                 ?.let { localMidnightToUtcMidnight(it) }
                                 ?: System.currentTimeMillis()
                         )
                         DatePickerDialog(
-                            onDismissRequest = { showDatePicker = false },
+                            onDismissRequest = { showDay0Picker = false },
                             confirmButton = {
                                 TextButton(onClick = {
                                     datePickerState.selectedDateMillis
                                         ?.let { viewModel.updateDay0Date(utcMidnightToLocalMidnight(it)) }
-                                    showDatePicker = false
+                                    showDay0Picker = false
                                 }) { Text("OK") }
                             },
                             dismissButton = {
-                                TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
+                                TextButton(onClick = { showDay0Picker = false }) { Text("Cancel") }
                             }
                         ) {
                             DatePicker(state = datePickerState)
                         }
+                    }
+
+                    if (showMilestonePicker) {
+                        val datePickerState = rememberDatePickerState(
+                            initialSelectedDateMillis = System.currentTimeMillis()
+                        )
+                        DatePickerDialog(
+                            onDismissRequest = { showMilestonePicker = false },
+                            confirmButton = {
+                                TextButton(onClick = {
+                                    datePickerState.selectedDateMillis?.let {
+                                        pendingMilestoneDate = utcMidnightToLocalMidnight(it)
+                                        pendingComment = ""
+                                    }
+                                    showMilestonePicker = false
+                                }) { Text("Next") }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showMilestonePicker = false }) { Text("Cancel") }
+                            }
+                        ) {
+                            DatePicker(state = datePickerState)
+                        }
+                    }
+
+                    if (pendingMilestoneDate != null) {
+                        AlertDialog(
+                            onDismissRequest = { pendingMilestoneDate = null },
+                            title = { Text("Add comment") },
+                            text = {
+                                OutlinedTextField(
+                                    value = pendingComment,
+                                    onValueChange = { pendingComment = it },
+                                    label = { Text("Comment (optional)") },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            },
+                            confirmButton = {
+                                TextButton(onClick = {
+                                    viewModel.addMilestone(Milestone(pendingMilestoneDate!!, pendingComment.trim()))
+                                    pendingMilestoneDate = null
+                                }) { Text("Add") }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { pendingMilestoneDate = null }) { Text("Cancel") }
+                            }
+                        )
                     }
                 }
 

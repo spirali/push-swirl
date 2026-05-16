@@ -101,6 +101,11 @@ enum class StatsTimeInterval(val label: String, val days: Int?) {
     ALL("All", null)
 }
 
+data class Milestone(
+    val date: Long,
+    val comment: String = ""
+)
+
 data class NotificationSettings(
     val vibrationEnabled: Boolean = true,
     val soundEnabled: Boolean = true,

@@ -119,6 +119,20 @@ class SessionStorage(private val context: Context) {
         return prefs.getInt("countdown_interval_minutes", 8 * 60)
     }
 
+    fun saveMilestones(milestones: List<Milestone>) {
+        prefs.edit().putString("milestones", gson.toJson(milestones)).apply()
+    }
+
+    fun loadMilestones(): List<Milestone> {
+        val json = prefs.getString("milestones", null) ?: return emptyList()
+        return try {
+            val type = object : TypeToken<List<Milestone>>() {}.type
+            gson.fromJson(json, type)
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
     fun saveDay0Date(epochMillis: Long?) {
         if (epochMillis != null) {
             prefs.edit().putLong("day0_date", epochMillis).apply()
@@ -203,6 +217,7 @@ class SessionStorage(private val context: Context) {
             exportDate = isoFormat.format(Date()),
             appVersion = getAppVersion(),
             day0Date = loadDay0Date()?.let { isoFormat.format(Date(it)) },
+            milestones = loadMilestones().map { MilestoneExport(isoFormat.format(Date(it.date)), it.comment) },
             sessions = sessions.map { it.toExport() }
         )
 
@@ -344,6 +359,17 @@ class SessionStorage(private val context: Context) {
                 try {
                     val isoFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.getDefault())
                     isoFormat.parse(isoStr)?.time?.let { saveDay0Date(it) }
+                } catch (_: Exception) {}
+            }
+
+            // Restore milestones if present in the export
+            exportData.milestones?.let { exported ->
+                try {
+                    val isoFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.getDefault())
+                    val restored = exported.mapNotNull { m ->
+                        isoFormat.parse(m.date)?.time?.let { Milestone(it, m.comment) }
+                    }.sortedBy { it.date }
+                    saveMilestones(restored)
                 } catch (_: Exception) {}
             }
 
@@ -505,10 +531,16 @@ class SessionStorage(private val context: Context) {
  * [day0Date] is nullable for backward compatibility —
  * older exports that lack this field will deserialize it as null.
  */
+data class MilestoneExport(
+    val date: String,
+    val comment: String = ""
+)
+
 data class ExportData(
     val exportDate: String,
     val appVersion: String,
     val day0Date: String? = null,
+    val milestones: List<MilestoneExport>? = null,
     val sessions: List<SessionExport>
 )
 
