@@ -4,6 +4,8 @@
 
 * You can define "milestones" in your progress.
 * Improvement in charts visualization and linear regression computing when milestones are defined
+* History allows to edit records
+* Sorting history by date/length/ttds
 * Optimiation of "New session screen" for smaller devices
 
 ## v1.9

@@ -30,6 +30,15 @@ sealed class SessionState {
     data class Dilation(val phase: PhaseSize, val action: DilationAction) : SessionState()
 }
 
+enum class HistorySortField(val label: String) {
+    DATE("Date"),
+    SESSION_LENGTH("Length"),
+    TTD_SMALL("TTD Small"),
+    TTD_MEDIUM("TTD Medium"),
+    TTD_LARGE("TTD Large"),
+    TTD_XL("TTD XL")
+}
+
 class SessionViewModel(application: Application) : AndroidViewModel(application) {
 
     private val storage = SessionStorage(application)
@@ -127,6 +136,32 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
 
     // History and stats
     var sessions by mutableStateOf(storage.loadSessions())
+    var historySortField by mutableStateOf(HistorySortField.DATE)
+    var historySortAscending by mutableStateOf(false)
+
+    val sortedSessions: List<Session>
+        get() {
+            fun Session.ttdFor(size: PhaseSize): Long =
+                phases.find { it.size == size }?.ttdSeconds ?: Long.MAX_VALUE
+            val cmp = Comparator<Session> { a, b ->
+                when (historySortField) {
+                    HistorySortField.DATE           -> a.timestamp.compareTo(b.timestamp)
+                    HistorySortField.SESSION_LENGTH -> a.totalSeconds.compareTo(b.totalSeconds)
+                    HistorySortField.TTD_SMALL      -> a.ttdFor(PhaseSize.SMALL).compareTo(b.ttdFor(PhaseSize.SMALL))
+                    HistorySortField.TTD_MEDIUM     -> a.ttdFor(PhaseSize.MEDIUM).compareTo(b.ttdFor(PhaseSize.MEDIUM))
+                    HistorySortField.TTD_LARGE      -> a.ttdFor(PhaseSize.LARGE).compareTo(b.ttdFor(PhaseSize.LARGE))
+                    HistorySortField.TTD_XL         -> a.ttdFor(PhaseSize.XL).compareTo(b.ttdFor(PhaseSize.XL))
+                }
+            }
+            return if (historySortAscending) sessions.sortedWith(cmp) else sessions.sortedWith(cmp.reversed())
+        }
+
+    fun updateSession(session: Session) {
+        storage.saveOrUpdateSession(session)
+        sessions = storage.loadSessions()
+        stats = storage.calculateStats(statsTimeInterval.days)
+    }
+
     var statsTimeInterval by mutableStateOf(StatsTimeInterval.DAYS_14)
     var stats by mutableStateOf(storage.calculateStats(StatsTimeInterval.DAYS_14.days))
 
