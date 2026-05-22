@@ -30,6 +30,7 @@ class TimerService : Service() {
     }
 
     private val binder = TimerBinder()
+    private var wakeLock: PowerManager.WakeLock? = null
     private var vibrator: Vibrator? = null
     private var soundMode = SoundMode.SYSTEM
     private var vibrationMode = VibrationMode.SYSTEM
@@ -70,6 +71,11 @@ class TimerService : Service() {
                 volumeLevel = intent?.getFloatExtra("volumeLevel", 0.5f) ?: 0.5f
                 vibrationAmplitude = intent?.getFloatExtra("vibrationAmplitude", 1.0f) ?: 1.0f
                 isRunning = true
+                if (intent?.getBooleanExtra("wakeLockEnabled", true) == true) {
+                    val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+                    wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "PushSwirl::TimerWakeLock")
+                    wakeLock?.acquire()
+                }
                 startForeground(1, createNotification())
             }
         }
@@ -219,6 +225,8 @@ class TimerService : Service() {
         isRunning = false
         currentPhase = null
         currentAction = null
+        if (wakeLock?.isHeld == true) wakeLock?.release()
+        wakeLock = null
     }
 
     private fun formatTime(seconds: Int): String {

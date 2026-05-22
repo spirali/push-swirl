@@ -105,6 +105,14 @@ class SessionStorage(private val context: Context) {
         return prefs.getBoolean("keep_screen_on", true)
     }
 
+    fun saveWakeLockEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean("wake_lock_enabled", enabled).apply()
+    }
+
+    fun loadWakeLockEnabled(): Boolean {
+        return prefs.getBoolean("wake_lock_enabled", true)
+    }
+
     fun saveThemeMode(mode: ThemeMode) {
         prefs.edit().putString("theme_mode", mode.name).apply()
     }

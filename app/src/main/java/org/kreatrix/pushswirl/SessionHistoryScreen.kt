@@ -65,14 +65,17 @@ fun SessionHistoryScreen(viewModel: SessionViewModel) {
                     onFieldChange = { viewModel.historySortField = it },
                     onToggleDirection = { viewModel.historySortAscending = !viewModel.historySortAscending }
                 )
+                val expandedIds = remember { mutableStateMapOf<String, Boolean>() }
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    items(viewModel.sortedSessions) { session ->
+                    items(viewModel.sortedSessions, key = { it.id }) { session ->
                         SessionCard(
                             session = session,
+                            expanded = expandedIds[session.id] == true,
+                            onExpandedChange = { expandedIds[session.id] = it },
                             onDelete = { viewModel.deleteSession(session.id) },
                             onUpdate = { viewModel.updateSession(it) }
                         )
@@ -141,9 +144,14 @@ private data class PhaseEditState(
 )
 
 @Composable
-fun SessionCard(session: Session, onDelete: () -> Unit, onUpdate: (Session) -> Unit) {
+fun SessionCard(
+    session: Session,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    onDelete: () -> Unit,
+    onUpdate: (Session) -> Unit
+) {
     var showDeleteDialog by remember { mutableStateOf(false) }
-    var expanded by remember { mutableStateOf(false) }
     var isEditing by remember { mutableStateOf(false) }
     var editPhases by remember { mutableStateOf<List<PhaseEditState>>(emptyList()) }
 
@@ -208,7 +216,7 @@ fun SessionCard(session: Session, onDelete: () -> Unit, onUpdate: (Session) -> U
                         TextButton(onClick = { saveEdit() }) { Text("Save") }
                         TextButton(onClick = { isEditing = false }) { Text("Cancel") }
                     } else {
-                        TextButton(onClick = { expanded = !expanded }) {
+                        TextButton(onClick = { onExpandedChange(!expanded) }) {
                             Text(if (expanded) "Hide" else "Details")
                         }
                     }

@@ -89,6 +89,8 @@ fun SettingsScreen(viewModel: SessionViewModel) {
                     var showMilestonePicker by remember { mutableStateOf(false) }
                     var pendingMilestoneDate by remember { mutableStateOf<Long?>(null) }
                     var pendingComment by remember { mutableStateOf("") }
+                    var editingMilestone by remember { mutableStateOf<Milestone?>(null) }
+                    var editingComment by remember { mutableStateOf("") }
                     val day0Date = viewModel.day0Date
                     val dateFormat = remember { SimpleDateFormat("MMM d, yyyy", Locale.getDefault()) }
 
@@ -167,6 +169,12 @@ fun SettingsScreen(viewModel: SessionViewModel) {
                                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                         )
                                     }
+                                }
+                                TextButton(onClick = {
+                                    editingMilestone = milestone
+                                    editingComment = milestone.comment
+                                }) {
+                                    Text("Edit")
                                 }
                                 TextButton(onClick = { viewModel.removeMilestone(milestone) }) {
                                     Text("Remove", color = MaterialTheme.colorScheme.error)
@@ -250,6 +258,31 @@ fun SettingsScreen(viewModel: SessionViewModel) {
                             },
                             dismissButton = {
                                 TextButton(onClick = { pendingMilestoneDate = null }) { Text("Cancel") }
+                            }
+                        )
+                    }
+
+                    if (editingMilestone != null) {
+                        AlertDialog(
+                            onDismissRequest = { editingMilestone = null },
+                            title = { Text("Edit comment") },
+                            text = {
+                                OutlinedTextField(
+                                    value = editingComment,
+                                    onValueChange = { editingComment = it },
+                                    label = { Text("Comment (optional)") },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            },
+                            confirmButton = {
+                                TextButton(onClick = {
+                                    viewModel.updateMilestoneComment(editingMilestone!!, editingComment.trim())
+                                    editingMilestone = null
+                                }) { Text("Save") }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { editingMilestone = null }) { Text("Cancel") }
                             }
                         )
                     }
@@ -376,6 +409,25 @@ fun SettingsScreen(viewModel: SessionViewModel) {
                         Checkbox(
                             checked = viewModel.keepScreenOn,
                             onCheckedChange = { viewModel.updateKeepScreenOn(it) }
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Keep CPU awake", fontSize = 16.sp)
+                            Text(
+                                "Hold a wake lock during active session to prevent timers from freezing when the screen is off",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        }
+                        Checkbox(
+                            checked = viewModel.wakeLockEnabled,
+                            onCheckedChange = { viewModel.updateWakeLockEnabled(it) }
                         )
                     }
                 }

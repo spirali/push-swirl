@@ -52,6 +52,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
 
     // App settings
     var keepScreenOn by mutableStateOf(storage.loadKeepScreenOn())
+    var wakeLockEnabled by mutableStateOf(storage.loadWakeLockEnabled())
     var themeMode by mutableStateOf(storage.loadThemeMode())
     var countdownEnabled by mutableStateOf(storage.loadCountdownEnabled())
     var countdownIntervalMinutes by mutableIntStateOf(storage.loadCountdownIntervalMinutes())
@@ -251,6 +252,11 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         storage.saveKeepScreenOn(enabled)
     }
 
+    fun updateWakeLockEnabled(enabled: Boolean) {
+        wakeLockEnabled = enabled
+        storage.saveWakeLockEnabled(enabled)
+    }
+
     fun updateThemeMode(mode: ThemeMode) {
         themeMode = mode
         storage.saveThemeMode(mode)
@@ -279,6 +285,12 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
 
     fun removeMilestone(milestone: Milestone) {
         val updated = milestones - milestone
+        milestones = updated
+        storage.saveMilestones(updated)
+    }
+
+    fun updateMilestoneComment(milestone: Milestone, newComment: String) {
+        val updated = milestones.map { if (it == milestone) it.copy(comment = newComment) else it }
         milestones = updated
         storage.saveMilestones(updated)
     }
@@ -315,6 +327,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
             putExtra("vibrationMode", notificationSettings.vibrationMode.name)
             putExtra("volumeLevel", notificationSettings.volumeLevel)
             putExtra("vibrationAmplitude", notificationSettings.vibrationAmplitude)
+            putExtra("wakeLockEnabled", wakeLockEnabled)
         }
         getApplication<Application>().startService(intent)
         getApplication<Application>().bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)

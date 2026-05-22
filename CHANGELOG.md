@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## v1.11
+
+* Fixed session being killed by power management; the app now holds a CPU wake lock for the duration of the session
+* Added "Keep CPU awake" setting (enabled by default) to control the wake lock
+* Milestone comments can now be edited
+* History: expanded session details are no longer lost when scrolling
+
 ## v1.10
 
 * You can define "milestones" in your progress.
