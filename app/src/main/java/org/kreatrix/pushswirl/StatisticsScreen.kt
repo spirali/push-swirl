@@ -48,7 +48,8 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
     BackHandler { viewModel.navigateTo(AppScreen.Home) }
 
     val stats = viewModel.stats
-    val selectedInterval = viewModel.statsTimeInterval
+    val statsFilterDays = viewModel.statsFilterDays
+    val statsExcludedPeriodKeys = viewModel.statsExcludedPeriodKeys
     val sessions = viewModel.sessions
 
     val day0Date = viewModel.day0Date
@@ -56,13 +57,21 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
     val onSurface = MaterialTheme.colorScheme.onSurface
     val ttdVisibleSizes = viewModel.ttdVisibleSizes
 
+    fun sessionPeriodKey(session: Session, sortedMilestones: List<Milestone>): Long? {
+        var key: Long? = null
+        for (m in sortedMilestones) { if (session.timestamp >= m.date) key = m.date else break }
+        return key
+    }
+
     // Compute filtered + sorted sessions for charts
-    val chartData = remember(sessions, selectedInterval, day0Date, onSurface, ttdVisibleSizes, milestones) {
-        val days = selectedInterval.days
-        val filtered = if (days == null) sessions
-        else {
-            val cutoff = System.currentTimeMillis() - days * 24L * 60 * 60 * 1000
-            sessions.filter { it.timestamp >= cutoff }
+    val chartData = remember(sessions, statsFilterDays, statsExcludedPeriodKeys, day0Date, onSurface, ttdVisibleSizes, milestones) {
+        val cutoff = statsFilterDays?.let { System.currentTimeMillis() - it * 24L * 60 * 60 * 1000 }
+        val sortedMilestones = milestones.sortedBy { it.date }
+        val filtered = run {
+            var result = if (cutoff != null) sessions.filter { it.timestamp >= cutoff } else sessions
+            if (statsExcludedPeriodKeys.isNotEmpty())
+                result = result.filter { sessionPeriodKey(it, sortedMilestones) !in statsExcludedPeriodKeys }
+            result
         }
         val sorted = filtered.sortedBy { it.timestamp }
 
@@ -152,12 +161,14 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
     val (ttdSeries, gapSeries, lengthSeries) = chartData
 
     // Per-phase scatter: X = gap to previous session (hours), Y = TTD (seconds)
-    val ttdGapScatter: List<ScatterData> = remember(sessions, selectedInterval, day0Date, milestones) {
-        val days = selectedInterval.days
-        val filtered = if (days == null) sessions
-        else {
-            val cutoff = System.currentTimeMillis() - days * 24L * 60 * 60 * 1000
-            sessions.filter { it.timestamp >= cutoff }
+    val ttdGapScatter: List<ScatterData> = remember(sessions, statsFilterDays, statsExcludedPeriodKeys, day0Date, milestones) {
+        val cutoff2 = statsFilterDays?.let { System.currentTimeMillis() - it * 24L * 60 * 60 * 1000 }
+        val sortedMilestones2 = milestones.sortedBy { it.date }
+        val filtered = run {
+            var result = if (cutoff2 != null) sessions.filter { it.timestamp >= cutoff2 } else sessions
+            if (statsExcludedPeriodKeys.isNotEmpty())
+                result = result.filter { sessionPeriodKey(it, sortedMilestones2) !in statsExcludedPeriodKeys }
+            result
         }
         val sorted = filtered.sortedBy { it.timestamp }
 
@@ -250,28 +261,29 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // Time interval filter chips — two rows so they fit on small screens
-            val intervalRows = StatsTimeInterval.entries.chunked(4)
-            Column(
+            // Filter bar
+            val filterLabel = buildString {
+                append(if (statsFilterDays != null) "Last ${statsFilterDays}d" else "All time")
+                if (statsExcludedPeriodKeys.isNotEmpty() && milestones.isNotEmpty()) {
+                    val total = milestones.size + 1
+                    val active = total - statsExcludedPeriodKeys.size
+                    append("  ·  $active/$total periods")
+                }
+            }
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                intervalRows.forEach { row ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        row.forEach { interval ->
-                            FilterChip(
-                                modifier = Modifier.weight(1f),
-                                selected = selectedInterval == interval,
-                                onClick = { viewModel.updateStatsTimeInterval(interval) },
-                                label = { Text(interval.label, maxLines = 1) }
-                            )
-                        }
-                    }
+                Text(
+                    text = filterLabel,
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+                OutlinedButton(onClick = { viewModel.navigateTo(AppScreen.StatsFilter) }) {
+                    Text("Filter")
                 }
             }
 

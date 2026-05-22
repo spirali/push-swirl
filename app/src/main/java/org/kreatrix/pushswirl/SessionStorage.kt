@@ -178,17 +178,15 @@ class SessionStorage(private val context: Context) {
 
     fun calculateStats(intervalDays: Int? = null): SessionStats {
         val allSessions = loadSessions()
-
         val sessions = if (intervalDays != null) {
             val cutoff = System.currentTimeMillis() - intervalDays * 24L * 60 * 60 * 1000
             allSessions.filter { it.timestamp >= cutoff }
-        } else {
-            allSessions
-        }
+        } else allSessions
+        return calculateStatsFromSessions(sessions)
+    }
 
-        if (sessions.isEmpty()) {
-            return SessionStats(0.0, 0.0, 0.0, 0.0, 0.0, 0, 0.0)
-        }
+    fun calculateStatsFromSessions(sessions: List<Session>): SessionStats {
+        if (sessions.isEmpty()) return SessionStats(0.0, 0.0, 0.0, 0.0, 0.0, 0, 0.0)
 
         val smallTTDs = mutableListOf<Double>()
         val mediumTTDs = mutableListOf<Double>()
@@ -206,9 +204,7 @@ class SessionStorage(private val context: Context) {
             }
         }
 
-        val avgTimeBetweenSessions = if (sessions.size < 2) {
-            0.0
-        } else {
+        val avgTimeBetweenSessions = if (sessions.size < 2) 0.0 else {
             val sorted = sessions.sortedBy { it.timestamp }
             val gaps = sorted.zipWithNext { a, b -> (b.timestamp - a.timestamp).toDouble() / 1000.0 }
             gaps.average()

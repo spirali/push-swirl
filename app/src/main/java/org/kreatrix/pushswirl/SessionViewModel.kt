@@ -19,6 +19,7 @@ sealed class AppScreen {
     data class ActiveSession(val config: SessionConfig) : AppScreen()
     object SessionHistory : AppScreen()
     object Statistics : AppScreen()
+    object StatsFilter : AppScreen()
     object Settings : AppScreen()
     object ImportExport : AppScreen()
 }
@@ -160,15 +161,34 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     fun updateSession(session: Session) {
         storage.saveOrUpdateSession(session)
         sessions = storage.loadSessions()
-        stats = storage.calculateStats(statsTimeInterval.days)
+        stats = recomputeStats()
     }
 
-    var statsTimeInterval by mutableStateOf(StatsTimeInterval.DAYS_14)
-    var stats by mutableStateOf(storage.calculateStats(StatsTimeInterval.DAYS_14.days))
+    var statsFilterDays: Int? by mutableStateOf(14)
+    var statsExcludedPeriodKeys: Set<Long?> by mutableStateOf(emptySet())
+    var stats by mutableStateOf(storage.calculateStats(14))
 
-    fun updateStatsTimeInterval(interval: StatsTimeInterval) {
-        statsTimeInterval = interval
-        stats = storage.calculateStats(interval.days)
+    fun updateStatsFilter(days: Int?, excludedPeriodKeys: Set<Long?>) {
+        statsFilterDays = days
+        statsExcludedPeriodKeys = excludedPeriodKeys
+        stats = recomputeStats()
+    }
+
+    private fun recomputeStats(): SessionStats =
+        storage.calculateStatsFromSessions(filteredStatsSessions())
+
+    private fun filteredStatsSessions(): List<Session> {
+        val cutoff = statsFilterDays?.let { System.currentTimeMillis() - it * 24L * 60 * 60 * 1000 }
+        var result = if (cutoff != null) sessions.filter { it.timestamp >= cutoff } else sessions
+        if (statsExcludedPeriodKeys.isNotEmpty()) {
+            val sortedMilestones = milestones.sortedBy { it.date }
+            result = result.filter { session ->
+                var key: Long? = null
+                for (m in sortedMilestones) { if (session.timestamp >= m.date) key = m.date else break }
+                key !in statsExcludedPeriodKeys
+            }
+        }
+        return result
     }
 
     var ttdVisibleSizes by mutableStateOf(PhaseSize.entries.toSet())
@@ -588,7 +608,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
 
         // Reload data
         sessions = storage.loadSessions()
-        stats = storage.calculateStats(statsTimeInterval.days)
+        stats = recomputeStats()
 
         currentScreen = AppScreen.Home
         sessionState = SessionState.Idle
@@ -601,13 +621,13 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     fun deleteSession(sessionId: String) {
         storage.deleteSession(sessionId)
         sessions = storage.loadSessions()
-        stats = storage.calculateStats(statsTimeInterval.days)
+        stats = recomputeStats()
     }
 
     fun deleteAllSessions() {
         storage.deleteAllSessions()
         sessions = storage.loadSessions()
-        stats = storage.calculateStats(statsTimeInterval.days)
+        stats = recomputeStats()
     }
 
     // ============================================================================
@@ -634,14 +654,14 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     fun importSessions(uri: android.net.Uri): ImportResult {
         val result = storage.importSessionsFromUri(uri)
         sessions = storage.loadSessions()
-        stats = storage.calculateStats(statsTimeInterval.days)
+        stats = recomputeStats()
         return result
     }
 
     fun importFromButterfly(uri: android.net.Uri): ImportResult {
         val result = storage.importFromButterflyUri(uri)
         sessions = storage.loadSessions()
-        stats = storage.calculateStats(statsTimeInterval.days)
+        stats = recomputeStats()
         return result
     }
 
@@ -687,7 +707,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
 
         saveSessionCheckpoint(partialPhase)
         sessions = storage.loadSessions()
-        stats = storage.calculateStats(statsTimeInterval.days)
+        stats = recomputeStats()
 
         stopService()
         resetSessionState()
