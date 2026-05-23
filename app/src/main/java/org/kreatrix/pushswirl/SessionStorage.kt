@@ -113,6 +113,23 @@ class SessionStorage(private val context: Context) {
         return prefs.getBoolean("wake_lock_enabled", true)
     }
 
+    fun saveActiveSessionSnapshot(snapshot: ActiveSessionSnapshot) {
+        prefs.edit().putString("active_session_snapshot", gson.toJson(snapshot)).apply()
+    }
+
+    fun loadActiveSessionSnapshot(): ActiveSessionSnapshot? {
+        val json = prefs.getString("active_session_snapshot", null) ?: return null
+        return try {
+            gson.fromJson(json, ActiveSessionSnapshot::class.java)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    fun clearActiveSessionSnapshot() {
+        prefs.edit().remove("active_session_snapshot").apply()
+    }
+
     fun saveThemeMode(mode: ThemeMode) {
         prefs.edit().putString("theme_mode", mode.name).apply()
     }

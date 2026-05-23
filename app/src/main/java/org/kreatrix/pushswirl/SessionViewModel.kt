@@ -60,6 +60,10 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     var day0Date by mutableStateOf(storage.loadDay0Date())
     var milestones by mutableStateOf(storage.loadMilestones())
 
+    // Interrupted session resume
+    var pendingResume by mutableStateOf<ActiveSessionSnapshot?>(null)
+        private set
+
     // Active session state
     var sessionState by mutableStateOf<SessionState>(SessionState.Idle)
     var activePhases by mutableStateOf<List<PhaseSize>>(emptyList())
@@ -195,6 +199,10 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
 
     fun toggleTtdSize(size: PhaseSize) {
         ttdVisibleSizes = if (size in ttdVisibleSizes) ttdVisibleSizes - size else ttdVisibleSizes + size
+    }
+
+    init {
+        pendingResume = storage.loadActiveSessionSnapshot()
     }
 
     // ============================================================================
@@ -354,6 +362,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
 
         startTTDForCurrentPhase()
         currentScreen = AppScreen.ActiveSession(sessionConfig)
+        saveSessionSnapshot()
     }
 
     private fun startTTDForCurrentPhase() {
@@ -431,13 +440,15 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         updateTimeDisplays()
 
         startDilationTimer()
+        saveSessionSnapshot()
     }
 
-    private fun startDilationTimer() {
+    private fun startDilationTimer(isResume: Boolean = false) {
         dilationJob = viewModelScope.launch {
-            // Send initial notification
-            timerService?.makeNotification(NotificationEvent.PUSH_BEGIN)
-            lastNotifiedActionIndex = 0
+            if (!isResume) {
+                timerService?.makeNotification(NotificationEvent.PUSH_BEGIN)
+                lastNotifiedActionIndex = 0
+            }
 
             while (isActive && calculateDilationRemainingSeconds() > 0) {
                 if (!dilationPaused) {
@@ -503,6 +514,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
             }
         }
         updateTimeDisplays() // Update UI immediately
+        saveSessionSnapshot()
     }
 
     private fun saveSessionCheckpoint(currentPartialPhase: PhaseData? = null) {
@@ -583,6 +595,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         currentPhaseIndex++
         if (currentPhaseIndex < activePhases.size) {
             startTTDForCurrentPhase()
+            saveSessionSnapshot()
         } else {
             finishSession()
         }
@@ -598,6 +611,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
             totalSeconds = totalTime
         )
         storage.saveOrUpdateSession(session)
+        storage.clearActiveSessionSnapshot()
 
         // Stop service
         if (serviceBound) {
@@ -668,6 +682,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     fun cancelSession() {
         ttdJob?.cancel()
         dilationJob?.cancel()
+        storage.clearActiveSessionSnapshot()
         stopService()
         resetSessionState()
         currentScreen = AppScreen.Home
@@ -706,6 +721,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         }
 
         saveSessionCheckpoint(partialPhase)
+        storage.clearActiveSessionSnapshot()
         sessions = storage.loadSessions()
         stats = recomputeStats()
 
@@ -740,7 +756,150 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         currentPhaseDepth = null
     }
 
+    private fun saveSessionSnapshot() {
+        if (sessionState == SessionState.Idle) return
+        val phase = activePhases.getOrNull(currentPhaseIndex) ?: return
+
+        val stateType = when (sessionState) {
+            is SessionState.TTD -> "TTD"
+            is SessionState.DepthInput -> "DEPTH_INPUT"
+            is SessionState.Dilation -> "DILATION"
+            else -> return
+        }
+
+        val ttdElapsedMs = ttdAccumulatedMs +
+            if (ttdRunning) SystemClock.elapsedRealtime() - ttdStartTime else 0L
+
+        val dilationElapsedMs = dilationAccumulatedMs +
+            if (!dilationPaused && sessionState is SessionState.Dilation)
+                SystemClock.elapsedRealtime() - dilationStartTime
+            else 0L
+
+        storage.saveActiveSessionSnapshot(ActiveSessionSnapshot(
+            sessionId = sessionId,
+            sessionConfig = sessionConfig,
+            completedPhases = completedPhases.toList(),
+            currentPhaseIndex = currentPhaseIndex,
+            stateType = stateType,
+            currentPhaseSize = phase.name,
+            sessionStartWallClock = sessionStartTime,
+            saveWallClock = System.currentTimeMillis(),
+            ttdElapsedMs = ttdElapsedMs,
+            ttdRunning = ttdRunning,
+            lastTtdSeconds = lastTtdSeconds,
+            dilationTotalSeconds = dilationTotalSeconds,
+            dilationElapsedMs = dilationElapsedMs,
+            dilationPaused = dilationPaused,
+            earlyFinishSecondsRemaining = earlyFinishSecondsRemaining,
+            currentPhaseDepth = currentPhaseDepth,
+            sessionEndWallClock = if (sessionState is SessionState.DepthInput) sessionEndTime else 0L
+        ))
+    }
+
+    fun resumeSession() {
+        val snapshot = pendingResume ?: return
+        pendingResume = null
+
+        sessionId = snapshot.sessionId
+        sessionConfig = snapshot.sessionConfig
+        sessionStartTime = snapshot.sessionStartWallClock
+        currentPhaseIndex = snapshot.currentPhaseIndex
+        completedPhases.clear()
+        completedPhases.addAll(snapshot.completedPhases)
+        activePhases = sessionConfig.getActivePhases()
+
+        val intent = Intent(getApplication(), TimerService::class.java).apply {
+            putExtra("soundMode", notificationSettings.soundMode.name)
+            putExtra("vibrationMode", notificationSettings.vibrationMode.name)
+            putExtra("volumeLevel", notificationSettings.volumeLevel)
+            putExtra("vibrationAmplitude", notificationSettings.vibrationAmplitude)
+            putExtra("wakeLockEnabled", wakeLockEnabled)
+        }
+        getApplication<Application>().startService(intent)
+        getApplication<Application>().bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
+
+        currentScreen = AppScreen.ActiveSession(sessionConfig)
+
+        val phase = activePhases.getOrNull(currentPhaseIndex)
+            ?: run { discardInterruptedSession(); return }
+
+        when (snapshot.stateType) {
+            "TTD" -> {
+                sessionState = SessionState.TTD(phase)
+                ttdAccumulatedMs = snapshot.ttdElapsedMs
+                ttdStartTime = 0L
+                ttdRunning = false
+                ttdSeconds = snapshot.ttdElapsedMs / 1000
+                sessionEndTime = 0L
+                earlyFinishSecondsRemaining = null
+                currentPhaseDepth = null
+                if (sessionConfig.recordDepth) {
+                    currentDepthInput = storage.getLastDepthForSize(phase)
+                }
+            }
+
+            "DEPTH_INPUT" -> {
+                lastTtdSeconds = snapshot.lastTtdSeconds
+                sessionEndTime = if (snapshot.sessionEndWallClock > 0)
+                    snapshot.sessionEndWallClock else System.currentTimeMillis()
+                sessionState = SessionState.DepthInput(phase)
+                if (sessionConfig.recordDepth) {
+                    currentDepthInput = storage.getLastDepthForSize(phase)
+                }
+            }
+
+            "DILATION" -> {
+                lastTtdSeconds = snapshot.lastTtdSeconds
+                dilationTotalSeconds = snapshot.dilationTotalSeconds
+                earlyFinishSecondsRemaining = snapshot.earlyFinishSecondsRemaining
+                currentPhaseDepth = snapshot.currentPhaseDepth
+                sessionEndTime = 0L
+
+                val timeSinceSave = System.currentTimeMillis() - snapshot.saveWallClock
+                val adjustedElapsedMs = if (snapshot.dilationPaused)
+                    snapshot.dilationElapsedMs
+                else
+                    snapshot.dilationElapsedMs + timeSinceSave
+
+                if (adjustedElapsedMs >= snapshot.dilationTotalSeconds * 1000L) {
+                    // Dilation finished while app was down — fast-forward to completion
+                    dilationAccumulatedMs = snapshot.dilationTotalSeconds * 1000L
+                    dilationStartTime = SystemClock.elapsedRealtime()
+                    dilationPaused = false
+                    sessionState = SessionState.Dilation(phase, DilationAction.PUSH)
+                    updateTimeDisplays()
+                    finishDilation()
+                    return
+                }
+
+                dilationAccumulatedMs = adjustedElapsedMs
+                dilationStartTime = SystemClock.elapsedRealtime()
+                dilationPaused = snapshot.dilationPaused
+
+                val actionIdx = if (sessionConfig.actionTime > 0)
+                    (adjustedElapsedMs / 1000).toInt() / sessionConfig.actionTime
+                else 0
+                val action = if (actionIdx % 2 == 0) DilationAction.PUSH else DilationAction.SWIRL
+                sessionState = SessionState.Dilation(phase, action)
+                lastNotifiedActionIndex = actionIdx
+
+                updateTimeDisplays()
+                startDilationTimer(isResume = true)
+            }
+        }
+
+        saveSessionSnapshot()
+    }
+
+    fun discardInterruptedSession() {
+        storage.clearActiveSessionSnapshot()
+        pendingResume = null
+    }
+
     override fun onCleared() {
+        if (sessionState !is SessionState.Idle) {
+            saveSessionSnapshot()
+        }
         super.onCleared()
         ttdJob?.cancel()
         dilationJob?.cancel()

@@ -4,6 +4,7 @@
 
 * Added "Stacked TTD" chart
 * New filtering options in statistics (includes milestones)
+* When app is killed, allow to resume the session
 * Fixed session being killed by power management; the app now holds a CPU wake lock for the duration of the session
 * Added "Keep CPU awake" setting (enabled by default) to control the wake lock
 * Milestone comments can now be edited

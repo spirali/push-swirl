@@ -124,6 +124,53 @@ fun HomeScreen(viewModel: SessionViewModel) {
                 )
             }
 
+            val pendingResume = viewModel.pendingResume
+            if (pendingResume != null) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Interrupted session found",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
+                        if (pendingResume.completedPhases.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "${pendingResume.completedPhases.size} phase(s) completed",
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Button(
+                                onClick = { viewModel.resumeSession() },
+                                modifier = Modifier.weight(1f)
+                            ) { Text("Resume") }
+                            OutlinedButton(
+                                onClick = { viewModel.discardInterruptedSession() },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.error
+                                )
+                            ) { Text("Discard") }
+                        }
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(48.dp))
 
             Button(

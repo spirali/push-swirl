@@ -109,3 +109,23 @@ data class NotificationSettings(
     val soundEnabled: Boolean get() = soundMode != SoundMode.OFF
     val vibrationEnabled: Boolean get() = vibrationMode != VibrationMode.OFF
 }
+
+data class ActiveSessionSnapshot(
+    val sessionId: String,
+    val sessionConfig: SessionConfig,
+    val completedPhases: List<PhaseData>,
+    val currentPhaseIndex: Int,
+    val stateType: String,            // "TTD", "DEPTH_INPUT", "DILATION"
+    val currentPhaseSize: String,     // PhaseSize enum name
+    val sessionStartWallClock: Long,  // System.currentTimeMillis() at session start
+    val saveWallClock: Long,          // System.currentTimeMillis() when snapshot was saved
+    val ttdElapsedMs: Long,           // total accumulated TTD ms at save time
+    val ttdRunning: Boolean,
+    val lastTtdSeconds: Long,
+    val dilationTotalSeconds: Int,
+    val dilationElapsedMs: Long,      // total elapsed dilation ms at save time
+    val dilationPaused: Boolean,
+    val earlyFinishSecondsRemaining: Int?,
+    val currentPhaseDepth: Float?,
+    val sessionEndWallClock: Long = 0L  // set only for DEPTH_INPUT state
+)
