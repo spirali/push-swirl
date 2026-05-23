@@ -551,6 +551,29 @@ private fun SoundSettingsDialog(
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
+                if (local.soundMode != SoundMode.OFF) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = local.switchBeepsEnabled,
+                            onCheckedChange = { local = local.copy(switchBeepsEnabled = it) }
+                        )
+                        Text("Switch beeps", modifier = Modifier.padding(start = 4.dp))
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = local.phaseFanfareEnabled,
+                            onCheckedChange = { local = local.copy(phaseFanfareEnabled = it) }
+                        )
+                        Text("Phase fanfare", modifier = Modifier.padding(start = 4.dp))
+                    }
+                }
             }
         },
         confirmButton = {

@@ -9,6 +9,7 @@
 * Added "Keep CPU awake" setting (enabled by default) to control the wake lock
 * Milestone comments can now be edited
 * History: expanded session details are no longer lost when scrolling
+* Sound settings: separate toggles for "Switch beeps" and "Phase fanfare"
 
 ## v1.10
 

@@ -36,6 +36,8 @@ class TimerService : Service() {
     private var vibrationMode = VibrationMode.SYSTEM
     private var volumeLevel = 0.5f
     private var vibrationAmplitude = 1.0f
+    private var switchBeepsEnabled = true
+    private var phaseFanfareEnabled = true
 
     inner class TimerBinder : Binder() {
         fun getService(): TimerService = this@TimerService
@@ -87,6 +89,8 @@ class TimerService : Service() {
         vibrationMode = settings.vibrationMode
         volumeLevel = settings.volumeLevel
         vibrationAmplitude = settings.vibrationAmplitude
+        switchBeepsEnabled = settings.switchBeepsEnabled
+        phaseFanfareEnabled = settings.phaseFanfareEnabled
     }
 
     private fun createNotificationChannel() {
@@ -175,15 +179,15 @@ class TimerService : Service() {
         val restore = applyCustomVolume()
         when (type) {
             NotificationEvent.PUSH_BEGIN -> {
-                playSound(R.raw.beep_long, restore)
+                if (switchBeepsEnabled) playSound(R.raw.beep_long, restore) else restore?.invoke()
                 if (vibrationMode != VibrationMode.OFF) vibrate(longArrayOf(0, 400))
             }
             NotificationEvent.SWIRL_BEGIN -> {
-                playSound(R.raw.beep_short) { playSound(R.raw.beep_short, restore) }
+                if (switchBeepsEnabled) playSound(R.raw.beep_short) { playSound(R.raw.beep_short, restore) } else restore?.invoke()
                 if (vibrationMode != VibrationMode.OFF) vibrate(longArrayOf(0, 200, 200, 200))
             }
             NotificationEvent.PHASE_END -> {
-                playSound(R.raw.finish, restore)
+                if (phaseFanfareEnabled) playSound(R.raw.finish, restore) else restore?.invoke()
                 if (vibrationMode != VibrationMode.OFF) vibrate(longArrayOf(0, 400, 200, 400, 200, 400))
             }
         }

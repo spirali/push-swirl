@@ -104,7 +104,9 @@ data class NotificationSettings(
     val soundMode: SoundMode = SoundMode.SYSTEM,
     val vibrationMode: VibrationMode = VibrationMode.SYSTEM,
     val volumeLevel: Float = 0.5f,
-    val vibrationAmplitude: Float = 1.0f
+    val vibrationAmplitude: Float = 1.0f,
+    val switchBeepsEnabled: Boolean = true,
+    val phaseFanfareEnabled: Boolean = true
 ) {
     val soundEnabled: Boolean get() = soundMode != SoundMode.OFF
     val vibrationEnabled: Boolean get() = vibrationMode != VibrationMode.OFF
