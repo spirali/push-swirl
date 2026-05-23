@@ -424,6 +424,155 @@ fun ScatterChart(
     }
 }
 
+data class StackedLayer(val color: Color, val label: String, val points: List<ChartPoint>)
+
+@Composable
+fun StackedAreaChart(
+    layers: List<StackedLayer>,
+    modifier: Modifier = Modifier,
+    yAxisFormatter: (Float) -> String = { "%.0f".format(it) },
+    xAxisFormatter: ((Float) -> String)? = null,
+    xMilestonePositions: List<Float> = emptyList(),
+    regressionLines: List<Pair<Color, List<ChartPoint>>> = emptyList()
+) {
+    val textColor = MaterialTheme.colorScheme.onSurface
+    val gridColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+    val density   = LocalDensity.current
+
+    val allPoints = layers.flatMap { it.points }
+    if (allPoints.isEmpty()) {
+        Box(modifier = modifier, contentAlignment = Alignment.Center) {
+            Text("No data", color = textColor.copy(alpha = 0.4f))
+        }
+        return
+    }
+
+    val xMin = allPoints.minOf { it.x }
+    val xMax = allPoints.maxOf { it.x }
+
+    // Build per-layer value maps; collect all X values in sorted order
+    val xValues = allPoints.map { it.x }.toSortedSet().toList()
+    val layerMaps = layers.map { layer -> layer.points.associate { it.x to it.y } }
+
+    // cumulative[i][j] = sum of layer[0..i] at xValues[j]
+    val cumulative = Array(layers.size) { i ->
+        xValues.map { x -> (0..i).sumOf { j -> (layerMaps[j][x] ?: 0f).toDouble() }.toFloat() }
+    }
+
+    val maxY = cumulative.lastOrNull()?.maxOrNull()?.coerceAtLeast(1f) ?: 1f
+    val (chartYMax, yTicks) = niceYTicks(maxY, yAxisFormatter)
+
+    Canvas(modifier = modifier) {
+        val leftPad    = with(density) { 68.dp.toPx() }
+        val rightPad   = with(density) {  8.dp.toPx() }
+        val topPad     = with(density) {  6.dp.toPx() }
+        val botPad     = with(density) { if (xAxisFormatter != null) 26.dp.toPx() else 12.dp.toPx() }
+        val textSizePx = with(density) { 10.sp.toPx() }
+
+        val chartLeft   = leftPad
+        val chartRight  = size.width - rightPad
+        val chartTop    = topPad
+        val chartBottom = size.height - botPad
+        val chartWidth  = chartRight - chartLeft
+        val chartHeight = chartBottom - chartTop
+
+        fun mapX(x: Float): Float =
+            if (xMax == xMin) chartLeft + chartWidth / 2f
+            else chartLeft + (x - xMin) / (xMax - xMin) * chartWidth
+
+        fun mapY(y: Float): Float = chartBottom - (y / chartYMax) * chartHeight
+
+        val paint = AndroidPaint().apply {
+            color       = textColor.toArgb()
+            textSize    = textSizePx
+            textAlign   = AndroidPaint.Align.RIGHT
+            typeface    = Typeface.DEFAULT
+            isAntiAlias = true
+        }
+
+        // Y grid lines + labels
+        for (yValue in yTicks) {
+            val yPixel = mapY(yValue)
+            drawLine(gridColor, Offset(chartLeft, yPixel), Offset(chartRight, yPixel), 1.5f)
+            drawContext.canvas.nativeCanvas.drawText(
+                yAxisFormatter(yValue),
+                chartLeft - with(density) { 4.dp.toPx() },
+                yPixel + textSizePx / 3f,
+                paint
+            )
+        }
+
+        // Left axis line
+        drawLine(gridColor.copy(alpha = 0.5f), Offset(chartLeft, chartTop), Offset(chartLeft, chartBottom), 1.5f)
+
+        // Stacked filled areas (bottom to top)
+        layers.indices.forEach { i ->
+            val topVals    = cumulative[i]
+            val bottomVals = if (i == 0) xValues.map { 0f } else cumulative[i - 1]
+
+            val path = Path()
+            xValues.forEachIndexed { j, x ->
+                val px = mapX(x); val py = mapY(topVals[j])
+                if (j == 0) path.moveTo(px, py) else path.lineTo(px, py)
+            }
+            xValues.indices.reversed().forEach { j ->
+                path.lineTo(mapX(xValues[j]), mapY(bottomVals[j]))
+            }
+            path.close()
+            drawPath(path, layers[i].color)
+        }
+
+        // Milestone vertical lines (drawn on top of fill)
+        for (pos in xMilestonePositions) {
+            if (pos in xMin..xMax) {
+                drawLine(
+                    color = Color.Red.copy(alpha = 0.7f),
+                    start = Offset(mapX(pos), chartTop),
+                    end   = Offset(mapX(pos), chartBottom),
+                    strokeWidth = with(density) { 1.dp.toPx() }
+                )
+            }
+        }
+
+        // Regression lines (sum over all phases)
+        val baseStroke = with(density) { 2.dp.toPx() }
+        val regDash = PathEffect.dashPathEffect(floatArrayOf(20f, 10f))
+        regressionLines.forEach { (regColor, regLine) ->
+            if (regLine.size >= 2) {
+                val r0 = regLine.first(); val r1 = regLine.last()
+                val slope = if (r1.x != r0.x) (r1.y - r0.y) / (r1.x - r0.x) else 0f
+                val intercept = r0.y - slope * r0.x
+                drawLine(
+                    color       = regColor.copy(alpha = 0.85f),
+                    start       = Offset(chartLeft,  mapY(intercept + slope * xMin).coerceIn(chartTop, chartBottom)),
+                    end         = Offset(chartRight, mapY(intercept + slope * xMax).coerceIn(chartTop, chartBottom)),
+                    strokeWidth = baseStroke * 2.5f,
+                    pathEffect  = regDash
+                )
+            }
+        }
+
+        // X axis labels
+        if (xAxisFormatter != null) {
+            val xPaint = AndroidPaint().apply {
+                color       = textColor.toArgb()
+                textSize    = textSizePx
+                textAlign   = AndroidPaint.Align.CENTER
+                typeface    = Typeface.DEFAULT
+                isAntiAlias = true
+            }
+            for (xValue in niceXTicks(xMin, xMax, xAxisFormatter)) {
+                drawContext.canvas.nativeCanvas.drawText(
+                    xAxisFormatter(xValue),
+                    mapX(xValue),
+                    chartBottom + textSizePx * 1.8f,
+                    xPaint
+                )
+            }
+        }
+    }
+}
+
 @Composable
 fun ChartLegend(series: List<ChartSeries>) {
     val visible = series.filter { it.showInLegend }

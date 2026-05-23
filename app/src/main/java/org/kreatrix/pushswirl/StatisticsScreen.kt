@@ -81,7 +81,6 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
 
         val regDash = PathEffect.dashPathEffect(floatArrayOf(20f, 10f))
 
-        // Split boundaries in X-axis units (days from day0); single all-encompassing split when not applicable
         val splitBoundaries: List<Float> = if (day0Date != null && milestones.isNotEmpty())
             milestones.map { (it.date - day0Date) / 86_400_000f }.sorted()
         else emptyList()
@@ -159,6 +158,37 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
         Triple(ttdSeries, gapSeries, lengthSeries)
     }
     val (ttdSeries, gapSeries, lengthSeries) = chartData
+
+    // Stacked TTD layers + sum regression lines
+    val ttdStackedData = remember(sessions, statsFilterDays, statsExcludedPeriodKeys, day0Date, ttdVisibleSizes, milestones) {
+        val cutoff = statsFilterDays?.let { System.currentTimeMillis() - it * 24L * 60 * 60 * 1000 }
+        val sortedMilestones = milestones.sortedBy { it.date }
+        val filtered = run {
+            var result = if (cutoff != null) sessions.filter { it.timestamp >= cutoff } else sessions
+            if (statsExcludedPeriodKeys.isNotEmpty())
+                result = result.filter { sessionPeriodKey(it, sortedMilestones) !in statsExcludedPeriodKeys }
+            result
+        }
+        val sorted = filtered.sortedBy { it.timestamp }
+
+        val layers = listOf(
+            Triple(PhaseSize.SMALL,  "Small",  COLOR_SMALL),
+            Triple(PhaseSize.MEDIUM, "Medium", COLOR_MEDIUM),
+            Triple(PhaseSize.LARGE,  "Large",  COLOR_LARGE),
+            Triple(PhaseSize.XL,     "XL",     COLOR_XL),
+        ).filter { (size, _, _) -> size in ttdVisibleSizes }
+         .map { (size, label, color) ->
+            val points = sorted.mapIndexed { idx, session ->
+                val x = if (day0Date != null) (session.timestamp - day0Date) / 86_400_000f else idx.toFloat()
+                val ttd = session.phases.find { it.size == size }?.ttdSeconds?.toFloat() ?: 0f
+                ChartPoint(x, ttd)
+            }
+            StackedLayer(color, label, points)
+        }
+
+        layers
+    }
+    val ttdStackedLayers = ttdStackedData
 
     // Per-phase scatter: X = gap to previous session (hours), Y = TTD (seconds)
     val ttdGapScatter: List<ScatterData> = remember(sessions, statsFilterDays, statsExcludedPeriodKeys, day0Date, milestones) {
@@ -383,7 +413,7 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
                     if (stats.largeTTD  > 0) StatCard(title = "Large",  value = formatDuration(stats.largeTTD.toLong()))
                     if (stats.xlTTD     > 0) StatCard(title = "XL",     value = formatDuration(stats.xlTTD.toLong()))
 
-                    // TTD chart
+                    // TTD chart (line with MA + regression per phase)
                     ChartCard(title = "TTD") {
                         val ttdSizeEntries = listOf(
                             Triple(PhaseSize.SMALL,  "Small",  COLOR_SMALL),
@@ -421,6 +451,37 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             ChartLegend(series = ttdSeries)
+                        }
+                    }
+
+                    // TTD stacked chart
+                    ChartCard(title = "TTD stacked") {
+                        if (ttdStackedLayers.isNotEmpty()) {
+                            StackedAreaChart(
+                                layers = ttdStackedLayers,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(180.dp),
+                                yAxisFormatter = { sec -> formatTtd(sec) },
+                                xAxisFormatter = xAxisFormatter,
+                                xMilestonePositions = xMilestonePositions
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                ttdStackedLayers.forEach { layer ->
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Canvas(modifier = Modifier.size(10.dp)) { drawRect(layer.color) }
+                                        Text(layer.label, style = MaterialTheme.typography.labelMedium)
+                                    }
+                                }
+                            }
                         }
                     }
 

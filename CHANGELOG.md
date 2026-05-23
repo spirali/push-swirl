@@ -2,6 +2,7 @@
 
 ## v1.11
 
+* Added "Stacked TTD" chart
 * New filtering options in statistics (includes milestones)
 * Fixed session being killed by power management; the app now holds a CPU wake lock for the duration of the session
 * Added "Keep CPU awake" setting (enabled by default) to control the wake lock
