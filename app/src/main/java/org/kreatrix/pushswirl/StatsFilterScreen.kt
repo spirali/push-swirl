@@ -9,8 +9,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -41,35 +45,56 @@ fun StatsFilterScreen(viewModel: SessionViewModel) {
         }
     }
 
-    fun periodLabel(key: Long?): String {
-        val range: String
-        val startComment: String?
-        val endComment: String?
+    val milestoneNameColor = MaterialTheme.colorScheme.secondary
 
-        if (key == null) {
-            val endMilestone = sortedMilestones.firstOrNull() ?: return "All"
-            range = if (day0Date != null) "D0-D${((endMilestone.date - day0Date) / 86_400_000).toInt()}"
-                    else "– ${dateFormat.format(Date(endMilestone.date))}"
-            startComment = null
-            endComment = endMilestone.comment.takeIf { it.isNotBlank() }
-        } else {
-            val idx = sortedMilestones.indexOfFirst { it.date == key }
-            val startMilestone = sortedMilestones.getOrNull(idx)
-            val endMilestone = sortedMilestones.getOrNull(idx + 1)
-            range = if (day0Date != null) {
-                val startDay = ((key - day0Date) / 86_400_000).toInt()
-                if (endMilestone != null) "D$startDay-D${((endMilestone.date - day0Date) / 86_400_000).toInt()}"
-                else "D$startDay+"
-            } else {
-                val start = dateFormat.format(Date(key))
-                if (endMilestone != null) "$start-${dateFormat.format(Date(endMilestone.date))}" else "$start+"
-            }
-            startComment = startMilestone?.comment?.takeIf { it.isNotBlank() }
-            endComment = endMilestone?.comment?.takeIf { it.isNotBlank() }
+    fun makeName(label: String, comment: String?): AnnotatedString = buildAnnotatedString {
+        append(label)
+        if (!comment.isNullOrBlank()) {
+            append(" (")
+            withStyle(SpanStyle(color = milestoneNameColor)) { append(comment) }
+            append(")")
         }
+    }
 
-        val commentPart = listOfNotNull(startComment, endComment).joinToString(" - ")
-        return if (commentPart.isNotEmpty()) "$range: $commentPart" else range
+    fun periodLabel(key: Long?): AnnotatedString {
+        if (sortedMilestones.isEmpty()) return buildAnnotatedString { append("All") }
+        return buildAnnotatedString {
+            if (key == null) {
+                val endMilestone = sortedMilestones.first()
+                if (day0Date != null) {
+                    val endDay = ((endMilestone.date - day0Date) / 86_400_000).toInt()
+                    append(makeName("D0", null))
+                    append(" - ")
+                    append(makeName("D$endDay", endMilestone.comment.takeIf { it.isNotBlank() }))
+                } else {
+                    append("– ")
+                    append(makeName(dateFormat.format(Date(endMilestone.date)), endMilestone.comment.takeIf { it.isNotBlank() }))
+                }
+            } else {
+                val idx = sortedMilestones.indexOfFirst { it.date == key }
+                val startMilestone = sortedMilestones.getOrNull(idx)
+                val endMilestone = sortedMilestones.getOrNull(idx + 1)
+                if (day0Date != null) {
+                    val startDay = ((key - day0Date) / 86_400_000).toInt()
+                    append(makeName("D$startDay", startMilestone?.comment?.takeIf { it.isNotBlank() }))
+                    if (endMilestone != null) {
+                        val endDay = ((endMilestone.date - day0Date) / 86_400_000).toInt()
+                        append(" - ")
+                        append(makeName("D$endDay", endMilestone.comment.takeIf { it.isNotBlank() }))
+                    } else {
+                        append("+")
+                    }
+                } else {
+                    append(makeName(dateFormat.format(Date(key)), startMilestone?.comment?.takeIf { it.isNotBlank() }))
+                    if (endMilestone != null) {
+                        append(" - ")
+                        append(makeName(dateFormat.format(Date(endMilestone.date)), endMilestone.comment.takeIf { it.isNotBlank() }))
+                    } else {
+                        append("+")
+                    }
+                }
+            }
+        }
     }
 
     val quickOptions = listOf(7, 14, 30, 90)

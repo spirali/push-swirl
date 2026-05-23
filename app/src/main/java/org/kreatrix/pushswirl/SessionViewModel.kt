@@ -168,13 +168,15 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         stats = recomputeStats()
     }
 
-    var statsFilterDays: Int? by mutableStateOf(14)
-    var statsExcludedPeriodKeys: Set<Long?> by mutableStateOf(emptySet())
-    var stats by mutableStateOf(storage.calculateStats(14))
+    private val savedFilter = storage.loadStatsFilter()
+    var statsFilterDays: Int? by mutableStateOf(savedFilter.first)
+    var statsExcludedPeriodKeys: Set<Long?> by mutableStateOf(savedFilter.second)
+    var stats by mutableStateOf(recomputeStats())
 
     fun updateStatsFilter(days: Int?, excludedPeriodKeys: Set<Long?>) {
         statsFilterDays = days
         statsExcludedPeriodKeys = excludedPeriodKeys
+        storage.saveStatsFilter(days, excludedPeriodKeys)
         stats = recomputeStats()
     }
 

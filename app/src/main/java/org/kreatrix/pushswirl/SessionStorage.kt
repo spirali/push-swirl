@@ -182,6 +182,26 @@ class SessionStorage(private val context: Context) {
         return if (v == -1L) null else v
     }
 
+    fun saveStatsFilter(days: Int?, excludedKeys: Set<Long?>) {
+        prefs.edit()
+            .putInt("stats_filter_days", days ?: -1)
+            .putString("stats_excluded_period_keys", gson.toJson(excludedKeys.toList()))
+            .apply()
+    }
+
+    fun loadStatsFilter(): Pair<Int?, Set<Long?>> {
+        val days = prefs.getInt("stats_filter_days", 14).let { if (it == -1) null else it }
+        val keysJson = prefs.getString("stats_excluded_period_keys", null)
+        val keys: Set<Long?> = if (keysJson != null) {
+            try {
+                val type = object : TypeToken<List<Long?>>() {}.type
+                val list: List<Long?> = gson.fromJson(keysJson, type)
+                list.toSet()
+            } catch (e: Exception) { emptySet() }
+        } else emptySet()
+        return Pair(days, keys)
+    }
+
     fun getLastDepthForSize(size: PhaseSize): Float {
         // Get the last recorded depth from sessions that have depth recorded
         val sessions = loadSessions()
