@@ -14,6 +14,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -270,6 +271,17 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
         milestones.map { (it.date - day0Date) / 86_400_000f }
     else emptyList()
 
+    val isWideScreen = LocalConfiguration.current.screenWidthDp > 600
+
+    val filterLabel = buildString {
+        append(if (statsFilterDays != null) "Last ${statsFilterDays}d" else "All time")
+        if (statsExcludedPeriodKeys.isNotEmpty() && milestones.isNotEmpty()) {
+            val total = milestones.size + 1
+            val active = total - statsExcludedPeriodKeys.size
+            append("  ·  $active/$total periods")
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -282,6 +294,19 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
                     TextButton(onClick = { viewModel.navigateTo(AppScreen.Home) }) {
                         Text("Back", color = MaterialTheme.colorScheme.onPrimary)
                     }
+                },
+                actions = {
+                    if (isWideScreen) {
+                        Text(
+                            text = filterLabel,
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
+                            modifier = Modifier.padding(end = 8.dp)
+                        )
+                        TextButton(onClick = { viewModel.navigateTo(AppScreen.StatsFilter) }) {
+                            Text("Filter", color = MaterialTheme.colorScheme.onPrimary)
+                        }
+                    }
                 }
             )
         }
@@ -291,33 +316,25 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // Filter bar
-            val filterLabel = buildString {
-                append(if (statsFilterDays != null) "Last ${statsFilterDays}d" else "All time")
-                if (statsExcludedPeriodKeys.isNotEmpty() && milestones.isNotEmpty()) {
-                    val total = milestones.size + 1
-                    val active = total - statsExcludedPeriodKeys.size
-                    append("  ·  $active/$total periods")
+            if (!isWideScreen) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = filterLabel,
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
+                    OutlinedButton(onClick = { viewModel.navigateTo(AppScreen.StatsFilter) }) {
+                        Text("Filter")
+                    }
                 }
+                Divider(modifier = Modifier.padding(vertical = 4.dp))
             }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = filterLabel,
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                )
-                OutlinedButton(onClick = { viewModel.navigateTo(AppScreen.StatsFilter) }) {
-                    Text("Filter")
-                }
-            }
-
-            Divider(modifier = Modifier.padding(vertical = 4.dp))
 
             if (stats.totalSessions == 0) {
                 Box(

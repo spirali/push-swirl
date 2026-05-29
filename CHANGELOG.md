@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## v1.12
+
+* Support for wide-screen usage.
+
 ## v1.11
 
 * Added "Stacked TTD" chart

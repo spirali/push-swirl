@@ -1,5 +1,6 @@
 package org.kreatrix.pushswirl
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.rememberScrollState
@@ -42,86 +43,191 @@ fun NewSessionScreen(viewModel: SessionViewModel) {
             )
         }
     ) { padding ->
-        Column(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            Button(
-                onClick = {
-                    val config = SessionConfig(small, medium, large, xl, actionTime, recordDepth)
-                    viewModel.updateConfig(config)
-                    viewModel.startSession()
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 16.dp)
-                    .height(56.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary
-                )
-            ) {
-                Text("Start Session", fontSize = 18.sp)
-            }
+            val isWideScreen = maxWidth > 600.dp
 
-            TabRow(selectedTabIndex = selectedTab) {
-                Tab(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    text = { Text("Phases") }
-                )
-                Tab(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    text = { Text("Others") }
-                )
-            }
-
-            when (selectedTab) {
-                0 -> Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(24.dp)
-                        .verticalScroll(rememberScrollState()),
-                    horizontalAlignment = Alignment.Start
-                ) {
-                    PhaseSelector("Small", small) { small = it }
-                    Spacer(modifier = Modifier.height(12.dp))
-                    PhaseSelector("Medium", medium) { medium = it }
-                    Spacer(modifier = Modifier.height(12.dp))
-                    PhaseSelector("Large", large) { large = it }
-                    Spacer(modifier = Modifier.height(12.dp))
-                    PhaseSelector("XL", xl) { xl = it }
-                }
-                1 -> Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(24.dp)
-                        .verticalScroll(rememberScrollState()),
-                    horizontalAlignment = Alignment.Start
-                ) {
-                    ActionTimeSelector(actionTime) { actionTime = it }
-
-                    Spacer(modifier = Modifier.height(32.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+            if (isWideScreen) {
+                Row(modifier = Modifier.fillMaxSize()) {
+                    // Left: vertical tab rail + Start button
+                    Column(
+                        modifier = Modifier
+                            .width(180.dp)
+                            .fillMaxHeight()
+                            .padding(vertical = 8.dp)
                     ) {
-                        Text(
-                            text = "Record Reached Depth",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onBackground
+                        NavigationDrawerItem(
+                            label = { Text("Phases") },
+                            selected = selectedTab == 0,
+                            onClick = { selectedTab = 0 },
+                            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                         )
-                        Checkbox(
-                            checked = recordDepth,
-                            onCheckedChange = { recordDepth = it },
-                            colors = CheckboxDefaults.colors(
-                                checkedColor = MaterialTheme.colorScheme.primary
+                        NavigationDrawerItem(
+                            label = { Text("Others") },
+                            selected = selectedTab == 1,
+                            onClick = { selectedTab = 1 },
+                            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                        )
+                        Spacer(modifier = Modifier.weight(1f))
+                        Button(
+                            onClick = {
+                                viewModel.updateConfig(SessionConfig(small, medium, large, xl, actionTime, recordDepth))
+                                viewModel.startSession()
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp)
+                                .height(52.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary
                             )
+                        ) {
+                            Text("Start", fontSize = 16.sp)
+                        }
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .width(1.dp)
+                            .background(MaterialTheme.colorScheme.outlineVariant)
+                    )
+                    // Right: tab content
+                    when (selectedTab) {
+                        0 -> Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .verticalScroll(rememberScrollState())
+                                .padding(24.dp),
+                            horizontalAlignment = Alignment.Start
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(24.dp)
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    PhaseSelector("Small", small) { small = it }
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    PhaseSelector("Large", large) { large = it }
+                                }
+                                Column(modifier = Modifier.weight(1f)) {
+                                    PhaseSelector("Medium", medium) { medium = it }
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    PhaseSelector("XL", xl) { xl = it }
+                                }
+                            }
+                        }
+                        1 -> Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .verticalScroll(rememberScrollState())
+                                .padding(24.dp),
+                            horizontalAlignment = Alignment.Start
+                        ) {
+                            ActionTimeSelector(actionTime) { actionTime = it }
+                            Spacer(modifier = Modifier.height(32.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Record Reached Depth",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onBackground
+                                )
+                                Checkbox(
+                                    checked = recordDepth,
+                                    onCheckedChange = { recordDepth = it },
+                                    colors = CheckboxDefaults.colors(
+                                        checkedColor = MaterialTheme.colorScheme.primary
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+            } else {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Button(
+                        onClick = {
+                            viewModel.updateConfig(SessionConfig(small, medium, large, xl, actionTime, recordDepth))
+                            viewModel.startSession()
+                        },
+                        modifier = Modifier
+                            .align(Alignment.CenterHorizontally)
+                            .widthIn(max = 400.dp)
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp, vertical = 16.dp)
+                            .height(56.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
                         )
+                    ) {
+                        Text("Start Session", fontSize = 18.sp)
+                    }
+                    TabRow(selectedTabIndex = selectedTab) {
+                        Tab(
+                            selected = selectedTab == 0,
+                            onClick = { selectedTab = 0 },
+                            text = { Text("Phases") }
+                        )
+                        Tab(
+                            selected = selectedTab == 1,
+                            onClick = { selectedTab = 1 },
+                            text = { Text("Others") }
+                        )
+                    }
+                    when (selectedTab) {
+                        0 -> Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(24.dp)
+                                .verticalScroll(rememberScrollState()),
+                            horizontalAlignment = Alignment.Start
+                        ) {
+                            PhaseSelector("Small", small) { small = it }
+                            Spacer(modifier = Modifier.height(12.dp))
+                            PhaseSelector("Medium", medium) { medium = it }
+                            Spacer(modifier = Modifier.height(12.dp))
+                            PhaseSelector("Large", large) { large = it }
+                            Spacer(modifier = Modifier.height(12.dp))
+                            PhaseSelector("XL", xl) { xl = it }
+                        }
+                        1 -> Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(24.dp)
+                                .verticalScroll(rememberScrollState()),
+                            horizontalAlignment = Alignment.Start
+                        ) {
+                            ActionTimeSelector(actionTime) { actionTime = it }
+                            Spacer(modifier = Modifier.height(32.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Record Reached Depth",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onBackground
+                                )
+                                Checkbox(
+                                    checked = recordDepth,
+                                    onCheckedChange = { recordDepth = it },
+                                    colors = CheckboxDefaults.colors(
+                                        checkedColor = MaterialTheme.colorScheme.primary
+                                    )
+                                )
+                            }
+                        }
                     }
                 }
             }

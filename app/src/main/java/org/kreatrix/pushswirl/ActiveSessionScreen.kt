@@ -5,7 +5,9 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.view.WindowManager
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -65,19 +67,25 @@ fun ActiveSessionScreen(viewModel: SessionViewModel) {
             )
         }
     ) { padding ->
-        Column(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
         ) {
-            when (val state = viewModel.sessionState) {
-                is SessionState.TTD -> TTDView(viewModel, state.phase)
-                is SessionState.DepthInput -> DepthInputView(viewModel, state.phase)
-                is SessionState.Dilation -> DilationView(viewModel, state.phase, state.action)
-                else -> {}
+            val isWideScreen = maxWidth > 600.dp
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                when (val state = viewModel.sessionState) {
+                    is SessionState.TTD -> TTDView(viewModel, state.phase, isWideScreen = isWideScreen)
+                    is SessionState.DepthInput -> DepthInputView(viewModel, state.phase, isWideScreen = isWideScreen)
+                    is SessionState.Dilation -> DilationView(viewModel, state.phase, state.action, isWideScreen = isWideScreen)
+                    else -> {}
+                }
             }
         }
     }
@@ -115,93 +123,129 @@ fun ActiveSessionScreen(viewModel: SessionViewModel) {
 }
 
 @Composable
-fun TTDView(viewModel: SessionViewModel, phase: PhaseSize) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Text(
-            text = phase.name,
-            fontSize = 32.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text(
-            text = "Time to Depth",
-            fontSize = 20.sp,
-            color = MaterialTheme.colorScheme.onBackground
-        )
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        Text(
-            text = formatTime(viewModel.ttdSeconds),
-            fontSize = 64.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.secondary
-        )
-
-        Spacer(modifier = Modifier.height(48.dp))
-
-        if (viewModel.ttdRunning) {
-            Button(
-                onClick = { viewModel.pauseTTD() },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
+fun TTDView(viewModel: SessionViewModel, phase: PhaseSize, isWideScreen: Boolean = false) {
+    if (isWideScreen) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(32.dp)
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("Pause", fontSize = 18.sp)
+                Text(
+                    text = phase.name,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Time to Depth",
+                    fontSize = 16.sp,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = formatTime(viewModel.ttdSeconds),
+                    fontSize = 48.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.secondary
+                )
             }
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                TTDButtons(viewModel)
+            }
+        }
+    } else {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = phase.name,
+                fontSize = 32.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "Time to Depth",
+                fontSize = 20.sp,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            Spacer(modifier = Modifier.height(32.dp))
+            Text(
+                text = formatTime(viewModel.ttdSeconds),
+                fontSize = 64.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.secondary
+            )
+            Spacer(modifier = Modifier.height(48.dp))
+            TTDButtons(viewModel)
+        }
+    }
+}
 
-            Spacer(modifier = Modifier.height(12.dp))
-
+@Composable
+private fun TTDButtons(viewModel: SessionViewModel) {
+    if (viewModel.ttdRunning) {
+        Button(
+            onClick = { viewModel.pauseTTD() },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+        ) {
+            Text("Pause", fontSize = 18.sp)
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        Button(
+            onClick = { viewModel.finishTTD() },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.tertiary
+            )
+        ) {
+            Text("Depth reached", fontSize = 18.sp)
+        }
+    } else {
+        if (viewModel.ttdSeconds > 0) {
+            Spacer(modifier = Modifier.height(16.dp))
             Button(
-                onClick = { viewModel.finishTTD() },
+                onClick = { viewModel.startTTD() },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.tertiary
+                    containerColor = MaterialTheme.colorScheme.secondary
                 )
             ) {
-                Text("Depth reached", fontSize = 18.sp)
+                Text("Resume", fontSize = 18.sp)
             }
         } else {
-            if (viewModel.ttdSeconds > 0) {
-                Spacer(modifier = Modifier.height(16.dp))
-                Button(
-                    onClick = { viewModel.startTTD() },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.secondary
-                    )
-                ) {
-                    Text("Resume", fontSize = 18.sp)
-                }
-            } else {
-                Button(
-                    onClick = { viewModel.startTTD() },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary
-                    )
-                ) {
-                    Text("Start", fontSize = 18.sp)
-                }
+            Button(
+                onClick = { viewModel.startTTD() },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary
+                )
+            ) {
+                Text("Start", fontSize = 18.sp)
             }
         }
     }
 }
 
 @Composable
-fun DepthInputView(viewModel: SessionViewModel, phase: PhaseSize) {
+fun DepthInputView(viewModel: SessionViewModel, phase: PhaseSize, isWideScreen: Boolean = false) {
     var depthText by remember {
         mutableStateOf(
             if (viewModel.currentDepthInput % 1 == 0f) {
@@ -212,254 +256,235 @@ fun DepthInputView(viewModel: SessionViewModel, phase: PhaseSize) {
         )
     }
 
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Text(
-            text = phase.name,
-            fontSize = 32.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
-        )
+    val isValidDepth = depthText.isNotEmpty() &&
+            depthText.toFloatOrNull() != null &&
+            depthText.toFloatOrNull()!! in 0.1f..99.9f
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text(
-            text = "Record Depth",
-            fontSize = 20.sp,
-            color = MaterialTheme.colorScheme.onBackground
-        )
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        OutlinedTextField(
-            value = depthText,
-            onValueChange = { newValue ->
-                // Allow digits and single decimal point
-                val filtered = newValue.filter { it.isDigit() || it == '.' }
-
-                // Ensure only one decimal point
-                val dotCount = filtered.count { it == '.' }
-                if (dotCount <= 1) {
-                    // Prevent more than one digit after decimal
-                    val parts = filtered.split('.')
-                    val isValid = when {
-                        parts.size == 1 -> true
-                        parts.size == 2 -> parts[1].length <= 1
-                        else -> false
-                    }
-
-                    if (isValid) {
-                        depthText = filtered
-                        val depth = filtered.toFloatOrNull()
-                        if (depth != null && depth in 0.1f..99.9f) {
-                            viewModel.updateDepthInput(depth)
-                        }
-                    }
+    val onValueChange: (String) -> Unit = { newValue ->
+        val filtered = newValue.filter { it.isDigit() || it == '.' }
+        val dotCount = filtered.count { it == '.' }
+        if (dotCount <= 1) {
+            val parts = filtered.split('.')
+            val isValid = when {
+                parts.size == 1 -> true
+                parts.size == 2 -> parts[1].length <= 1
+                else -> false
+            }
+            if (isValid) {
+                depthText = filtered
+                val depth = filtered.toFloatOrNull()
+                if (depth != null && depth in 0.1f..99.9f) {
+                    viewModel.updateDepthInput(depth)
                 }
-            },
-            label = { Text("Depth (cm)") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
-        )
+            }
+        }
+    }
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = "Enter the depth reached in centimeters (e.g., 14.5)",
-            fontSize = 14.sp,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-        )
-
-        Spacer(modifier = Modifier.height(48.dp))
-
-        Button(
-            onClick = { viewModel.confirmDepth() },
-            enabled = depthText.isNotEmpty() && depthText.toFloatOrNull() != null && depthText.toFloatOrNull()!! in 0.1f..99.9f,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary
-            )
+    if (isWideScreen) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(32.dp)
         ) {
-            Text("Continue", fontSize = 18.sp)
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = phase.name,
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "Record Depth",
+                    fontSize = 20.sp,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                OutlinedTextField(
+                    value = depthText,
+                    onValueChange = onValueChange,
+                    label = { Text("Depth (cm)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Enter the depth reached in centimeters (e.g., 14.5)",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+                Button(
+                    onClick = { viewModel.confirmDepth() },
+                    enabled = isValidDepth,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Text("Continue", fontSize = 18.sp)
+                }
+            }
+        }
+    } else {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = phase.name,
+                fontSize = 32.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "Record Depth",
+                fontSize = 20.sp,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            Spacer(modifier = Modifier.height(32.dp))
+            OutlinedTextField(
+                value = depthText,
+                onValueChange = onValueChange,
+                label = { Text("Depth (cm)") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Enter the depth reached in centimeters (e.g., 14.5)",
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+            )
+            Spacer(modifier = Modifier.height(48.dp))
+            Button(
+                onClick = { viewModel.confirmDepth() },
+                enabled = isValidDepth,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary
+                )
+            ) {
+                Text("Continue", fontSize = 18.sp)
+            }
         }
     }
 }
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-fun DilationView(viewModel: SessionViewModel, phase: PhaseSize, action: DilationAction) {
+fun DilationView(viewModel: SessionViewModel, phase: PhaseSize, action: DilationAction, isWideScreen: Boolean = false) {
     var showEarlyFinishDialog by remember { mutableStateOf(false) }
     var showSoundDialog by remember { mutableStateOf(false) }
     var showVibrationDialog by remember { mutableStateOf(false) }
 
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Text(
-            text = phase.name,
-            fontSize = 32.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
-        )
+    val isStatic = viewModel.sessionConfig.actionTime == 0
+    val progress = 1f - (viewModel.dilationRemainingSeconds.toFloat() / viewModel.dilationTotalSeconds.toFloat())
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = action.name,
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold,
-            color = if (action == DilationAction.PUSH)
-                MaterialTheme.colorScheme.tertiary
-            else
-                MaterialTheme.colorScheme.secondary
-        )
-
-        val isStatic = viewModel.sessionConfig.actionTime == 0
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        if (isStatic) {
-            Text(
-                text = formatTime(viewModel.dilationRemainingSeconds.toLong()),
-                fontSize = 72.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "Remaining",
-                fontSize = 16.sp,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-            )
-        } else {
-            Text(
-                text = formatTime(viewModel.actionRemainingSeconds.toLong()),
-                fontSize = 72.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "Activity Timer",
-                fontSize = 16.sp,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-            )
-
-            Spacer(modifier = Modifier.height(32.dp))
-
-            Text(
-                text = formatTime(viewModel.dilationRemainingSeconds.toLong()),
-                fontSize = 36.sp,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-
-            Text(
-                text = "Total Remaining",
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-            )
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Progress bar
-        val progress = 1f - (viewModel.dilationRemainingSeconds.toFloat() / viewModel.dilationTotalSeconds.toFloat())
-        LinearProgressIndicator(
-            progress = progress,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(8.dp),
-            color = MaterialTheme.colorScheme.primary,
-        )
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        // Notification controls
+    if (isWideScreen) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(32.dp)
         ) {
-            Button(
-                onClick = { showVibrationDialog = true },
+            Column(
                 modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (viewModel.notificationSettings.vibrationEnabled)
-                        MaterialTheme.colorScheme.primary
-                    else
-                        MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = if (viewModel.notificationSettings.vibrationEnabled)
-                        MaterialTheme.colorScheme.onPrimary
-                    else
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("Vibration")
+                Text(
+                    text = phase.name,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = action.name,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (action == DilationAction.PUSH)
+                        MaterialTheme.colorScheme.tertiary
+                    else
+                        MaterialTheme.colorScheme.secondary
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                DilationTimerDisplay(viewModel, isStatic, isWideScreen = true)
+                Spacer(modifier = Modifier.height(12.dp))
+                LinearProgressIndicator(
+                    progress = progress,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                )
             }
-
-            Button(
-                onClick = { showSoundDialog = true },
+            Column(
                 modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (viewModel.notificationSettings.soundEnabled)
-                        MaterialTheme.colorScheme.primary
-                    else
-                        MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = if (viewModel.notificationSettings.soundEnabled)
-                        MaterialTheme.colorScheme.onPrimary
-                    else
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("Sound")
+                DilationControls(
+                    viewModel = viewModel,
+                    onShowVibrationDialog = { showVibrationDialog = true },
+                    onShowSoundDialog = { showSoundDialog = true },
+                    onShowEarlyFinishDialog = { showEarlyFinishDialog = true }
+                )
             }
         }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Pause button
-        Button(
-            onClick = { viewModel.toggleDilationPause() },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = if (viewModel.dilationPaused) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary
-            )
+    } else {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.fillMaxWidth()
         ) {
             Text(
-                if (viewModel.dilationPaused) "Resume" else "Pause",
-                fontSize = 18.sp
+                text = phase.name,
+                fontSize = 32.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
             )
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // Early Finish button
-        Button(
-            onClick = { showEarlyFinishDialog = true },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.tertiary
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = action.name,
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (action == DilationAction.PUSH)
+                    MaterialTheme.colorScheme.tertiary
+                else
+                    MaterialTheme.colorScheme.secondary
             )
-        ) {
-            Text("Early Finish", fontSize = 18.sp)
+            Spacer(modifier = Modifier.height(12.dp))
+            DilationTimerDisplay(viewModel, isStatic)
+            Spacer(modifier = Modifier.height(24.dp))
+            LinearProgressIndicator(
+                progress = progress,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(8.dp),
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Spacer(modifier = Modifier.height(32.dp))
+            DilationControls(
+                viewModel = viewModel,
+                onShowVibrationDialog = { showVibrationDialog = true },
+                onShowSoundDialog = { showSoundDialog = true },
+                onShowEarlyFinishDialog = { showEarlyFinishDialog = true }
+            )
         }
     }
 
-    // Early Finish confirmation dialog
     if (showEarlyFinishDialog) {
         AlertDialog(
             onDismissRequest = { showEarlyFinishDialog = false },
@@ -502,6 +527,154 @@ fun DilationView(viewModel: SessionViewModel, phase: PhaseSize, action: Dilation
             onSettingsChange = { viewModel.updateNotificationSettings(it) },
             onDismiss = { showVibrationDialog = false }
         )
+    }
+}
+
+@Composable
+private fun DilationTimerDisplay(viewModel: SessionViewModel, isStatic: Boolean, isWideScreen: Boolean = false) {
+    if (isStatic) {
+        Text(
+            text = formatTime(viewModel.dilationRemainingSeconds.toLong()),
+            fontSize = if (isWideScreen) 52.sp else 72.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "Remaining",
+            fontSize = if (isWideScreen) 13.sp else 16.sp,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+        )
+    } else if (isWideScreen) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(24.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = formatTime(viewModel.actionRemainingSeconds.toLong()),
+                    fontSize = 52.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = "Activity Timer",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                )
+            }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = formatTime(viewModel.dilationRemainingSeconds.toLong()),
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Text(
+                    text = "Total Remaining",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                )
+            }
+        }
+    } else {
+        Text(
+            text = formatTime(viewModel.actionRemainingSeconds.toLong()),
+            fontSize = 72.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "Activity Timer",
+            fontSize = 16.sp,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+        )
+        Spacer(modifier = Modifier.height(32.dp))
+        Text(
+            text = formatTime(viewModel.dilationRemainingSeconds.toLong()),
+            fontSize = 36.sp,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+        Text(
+            text = "Total Remaining",
+            fontSize = 14.sp,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+        )
+    }
+}
+
+@Composable
+private fun DilationControls(
+    viewModel: SessionViewModel,
+    onShowVibrationDialog: () -> Unit,
+    onShowSoundDialog: () -> Unit,
+    onShowEarlyFinishDialog: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Button(
+            onClick = onShowVibrationDialog,
+            modifier = Modifier.weight(1f),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if (viewModel.notificationSettings.vibrationEnabled)
+                    MaterialTheme.colorScheme.primary
+                else
+                    MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = if (viewModel.notificationSettings.vibrationEnabled)
+                    MaterialTheme.colorScheme.onPrimary
+                else
+                    MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        ) {
+            Text("Vibration")
+        }
+        Button(
+            onClick = onShowSoundDialog,
+            modifier = Modifier.weight(1f),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if (viewModel.notificationSettings.soundEnabled)
+                    MaterialTheme.colorScheme.primary
+                else
+                    MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = if (viewModel.notificationSettings.soundEnabled)
+                    MaterialTheme.colorScheme.onPrimary
+                else
+                    MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        ) {
+            Text("Sound")
+        }
+    }
+    Spacer(modifier = Modifier.height(16.dp))
+    Button(
+        onClick = { viewModel.toggleDilationPause() },
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = if (viewModel.dilationPaused) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary
+        )
+    ) {
+        Text(
+            if (viewModel.dilationPaused) "Resume" else "Pause",
+            fontSize = 18.sp
+        )
+    }
+    Spacer(modifier = Modifier.height(12.dp))
+    Button(
+        onClick = onShowEarlyFinishDialog,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.tertiary
+        )
+    ) {
+        Text("Early Finish", fontSize = 18.sp)
     }
 }
 
