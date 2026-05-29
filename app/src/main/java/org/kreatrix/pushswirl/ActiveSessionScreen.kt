@@ -9,6 +9,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
@@ -517,7 +518,8 @@ fun DilationView(viewModel: SessionViewModel, phase: PhaseSize, action: Dilation
         SoundSettingsDialog(
             settings = viewModel.notificationSettings,
             onSettingsChange = { viewModel.updateNotificationSettings(it) },
-            onDismiss = { showSoundDialog = false }
+            onDismiss = { showSoundDialog = false },
+            isWideScreen = isWideScreen
         )
     }
 
@@ -525,7 +527,8 @@ fun DilationView(viewModel: SessionViewModel, phase: PhaseSize, action: Dilation
         VibrationSettingsDialog(
             settings = viewModel.notificationSettings,
             onSettingsChange = { viewModel.updateNotificationSettings(it) },
-            onDismiss = { showVibrationDialog = false }
+            onDismiss = { showVibrationDialog = false },
+            isWideScreen = isWideScreen
         )
     }
 }
@@ -682,69 +685,137 @@ private fun DilationControls(
 private fun SoundSettingsDialog(
     settings: NotificationSettings,
     onSettingsChange: (NotificationSettings) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    isWideScreen: Boolean = false
 ) {
     var local by remember { mutableStateOf(settings) }
 
+    val soundModes = listOf(
+        SoundMode.OFF to "Off",
+        SoundMode.SYSTEM to "On - System Setting",
+        SoundMode.MANUAL to "On - Manual Volume"
+    )
+
     AlertDialog(
         onDismissRequest = onDismiss,
+        modifier = if (isWideScreen) Modifier.widthIn(min = 420.dp) else Modifier,
+        properties = if (isWideScreen) DialogProperties(usePlatformDefaultWidth = false) else DialogProperties(),
         title = { Text("Sound") },
         text = {
-            Column {
-                listOf(
-                    SoundMode.OFF to "Off",
-                    SoundMode.SYSTEM to "On - System Setting",
-                    SoundMode.MANUAL to "On - Manual Volume"
-                ).forEach { (mode, label) ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = local.soundMode == mode,
-                            onClick = { local = local.copy(soundMode = mode) }
-                        )
-                        Text(label, modifier = Modifier.padding(start = 4.dp))
+            if (isWideScreen) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        soundModes.forEach { (mode, label) ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = local.soundMode == mode,
+                                    onClick = { local = local.copy(soundMode = mode) }
+                                )
+                                Text(label, modifier = Modifier.padding(start = 4.dp))
+                            }
+                        }
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        if (local.soundMode == SoundMode.MANUAL) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Volume", fontSize = 14.sp)
+                                Text("${(local.volumeLevel * 100).roundToInt()}%", fontSize = 14.sp)
+                            }
+                            Slider(
+                                value = local.volumeLevel,
+                                onValueChange = { local = local.copy(volumeLevel = it) },
+                                valueRange = 0f..1f,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                        if (local.soundMode != SoundMode.OFF) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = local.switchBeepsEnabled,
+                                    onCheckedChange = { local = local.copy(switchBeepsEnabled = it) }
+                                )
+                                Text("Switch beeps", modifier = Modifier.padding(start = 4.dp))
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = local.phaseFanfareEnabled,
+                                    onCheckedChange = { local = local.copy(phaseFanfareEnabled = it) }
+                                )
+                                Text("Phase fanfare", modifier = Modifier.padding(start = 4.dp))
+                            }
+                        }
                     }
                 }
-                if (local.soundMode == SoundMode.MANUAL) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Volume", fontSize = 14.sp)
-                        Text("${(local.volumeLevel * 100).roundToInt()}%", fontSize = 14.sp)
+            } else {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    soundModes.forEach { (mode, label) ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = local.soundMode == mode,
+                                onClick = { local = local.copy(soundMode = mode) }
+                            )
+                            Text(label, modifier = Modifier.padding(start = 4.dp))
+                        }
                     }
-                    Slider(
-                        value = local.volumeLevel,
-                        onValueChange = { local = local.copy(volumeLevel = it) },
-                        valueRange = 0f..1f,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-                if (local.soundMode != SoundMode.OFF) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Checkbox(
-                            checked = local.switchBeepsEnabled,
-                            onCheckedChange = { local = local.copy(switchBeepsEnabled = it) }
+                    if (local.soundMode == SoundMode.MANUAL) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Volume", fontSize = 14.sp)
+                            Text("${(local.volumeLevel * 100).roundToInt()}%", fontSize = 14.sp)
+                        }
+                        Slider(
+                            value = local.volumeLevel,
+                            onValueChange = { local = local.copy(volumeLevel = it) },
+                            valueRange = 0f..1f,
+                            modifier = Modifier.fillMaxWidth()
                         )
-                        Text("Switch beeps", modifier = Modifier.padding(start = 4.dp))
                     }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Checkbox(
-                            checked = local.phaseFanfareEnabled,
-                            onCheckedChange = { local = local.copy(phaseFanfareEnabled = it) }
-                        )
-                        Text("Phase fanfare", modifier = Modifier.padding(start = 4.dp))
+                    if (local.soundMode != SoundMode.OFF) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = local.switchBeepsEnabled,
+                                onCheckedChange = { local = local.copy(switchBeepsEnabled = it) }
+                            )
+                            Text("Switch beeps", modifier = Modifier.padding(start = 4.dp))
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = local.phaseFanfareEnabled,
+                                onCheckedChange = { local = local.copy(phaseFanfareEnabled = it) }
+                            )
+                            Text("Phase fanfare", modifier = Modifier.padding(start = 4.dp))
+                        }
                     }
                 }
             }
@@ -765,47 +836,92 @@ private fun SoundSettingsDialog(
 private fun VibrationSettingsDialog(
     settings: NotificationSettings,
     onSettingsChange: (NotificationSettings) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    isWideScreen: Boolean = false
 ) {
     var local by remember { mutableStateOf(settings) }
 
+    val vibrationModes = listOf(
+        VibrationMode.OFF to "Off",
+        VibrationMode.SYSTEM to "On - System Setting",
+        VibrationMode.MANUAL to "On - Manual Amplitude"
+    )
+
     AlertDialog(
         onDismissRequest = onDismiss,
+        modifier = if (isWideScreen) Modifier.widthIn(min = 420.dp) else Modifier,
+        properties = if (isWideScreen) DialogProperties(usePlatformDefaultWidth = false) else DialogProperties(),
         title = { Text("Vibration") },
         text = {
-            Column {
-                listOf(
-                    VibrationMode.OFF to "Off",
-                    VibrationMode.SYSTEM to "On - System Setting",
-                    VibrationMode.MANUAL to "On - Manual Amplitude"
-                ).forEach { (mode, label) ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = local.vibrationMode == mode,
-                            onClick = { local = local.copy(vibrationMode = mode) }
-                        )
-                        Text(label, modifier = Modifier.padding(start = 4.dp))
+            if (isWideScreen) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        vibrationModes.forEach { (mode, label) ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = local.vibrationMode == mode,
+                                    onClick = { local = local.copy(vibrationMode = mode) }
+                                )
+                                Text(label, modifier = Modifier.padding(start = 4.dp))
+                            }
+                        }
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        if (local.vibrationMode == VibrationMode.MANUAL) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Amplitude", fontSize = 14.sp)
+                                Text("${(local.vibrationAmplitude * 100).roundToInt()}%", fontSize = 14.sp)
+                            }
+                            Slider(
+                                value = local.vibrationAmplitude,
+                                onValueChange = { local = local.copy(vibrationAmplitude = it) },
+                                valueRange = 0f..1f,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                     }
                 }
-                if (local.vibrationMode == VibrationMode.MANUAL) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Amplitude", fontSize = 14.sp)
-                        Text("${(local.vibrationAmplitude * 100).roundToInt()}%", fontSize = 14.sp)
+            } else {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    vibrationModes.forEach { (mode, label) ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = local.vibrationMode == mode,
+                                onClick = { local = local.copy(vibrationMode = mode) }
+                            )
+                            Text(label, modifier = Modifier.padding(start = 4.dp))
+                        }
                     }
-                    Slider(
-                        value = local.vibrationAmplitude,
-                        onValueChange = { local = local.copy(vibrationAmplitude = it) },
-                        valueRange = 0f..1f,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    if (local.vibrationMode == VibrationMode.MANUAL) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Amplitude", fontSize = 14.sp)
+                            Text("${(local.vibrationAmplitude * 100).roundToInt()}%", fontSize = 14.sp)
+                        }
+                        Slider(
+                            value = local.vibrationAmplitude,
+                            onValueChange = { local = local.copy(vibrationAmplitude = it) },
+                            valueRange = 0f..1f,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 }
             }
         },
