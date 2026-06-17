@@ -14,6 +14,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.util.Locale
 
 private data class PhaseEditState(
     val ttdMinutes: String,
@@ -36,7 +37,7 @@ fun EditSessionScreen(viewModel: SessionViewModel) {
                 ttdMinutes = (phase.ttdSeconds / 60).toString(),
                 ttdSeconds  = (phase.ttdSeconds % 60).toString(),
                 depthCm    = phase.depthCm?.let {
-                    if (it % 1 == 0f) it.toInt().toString() else String.format("%.1f", it)
+                    if (it % 1 == 0f) it.toInt().toString() else String.format(Locale.ROOT, "%.1f", it)
                 } ?: ""
             )
         })
@@ -48,7 +49,7 @@ fun EditSessionScreen(viewModel: SessionViewModel) {
         val updatedPhases = session.phases.mapIndexed { i, phase ->
             val mins     = editPhases[i].ttdMinutes.toLongOrNull() ?: 0L
             val secs     = editPhases[i].ttdSeconds.toLongOrNull() ?: 0L
-            val newDepth = if (phase.depthCm != null) editPhases[i].depthCm.toFloatOrNull() else null
+            val newDepth = if (phase.depthCm != null) editPhases[i].depthCm.replace(',', '.').toFloatOrNull() else null
             phase.copy(ttdSeconds = mins * 60 + secs, depthCm = newDepth)
         }
         viewModel.updateSession(

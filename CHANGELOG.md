@@ -1,6 +1,5 @@
 # CHANGELOG
 
-
 ## v1.13
 
 * Tags: define named, colored tags (Settings → Tags) and apply them to sessions
@@ -8,6 +7,9 @@
 * Tags and notes are editable in Session History via a dedicated Edit screen
 * Option to add tags and a note immediately after a session ends ("Add tags/note at end" in New Session → Others)
 * Blinded TTD timer: optionally hide the minutes during TTD (configurable in New Session → Others)
+* Fixed status bar color not following the selected theme on non-Pixel devices
+* Fixed depth being lost on save when the device locale uses comma as decimal separator
+* App icon shown in the timer notification
 
 ## v1.12
 
