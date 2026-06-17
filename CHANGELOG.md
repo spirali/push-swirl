@@ -1,12 +1,13 @@
 # CHANGELOG
 
+
 ## v1.13
 
 * Tags: define named, colored tags (Settings → Tags) and apply them to sessions
 * Notes: add a free-form note to any session
 * Tags and notes are editable in Session History via a dedicated Edit screen
 * Option to add tags and a note immediately after a session ends ("Add tags/note at end" in New Session → Others)
-
+* Blinded TTD timer: optionally hide the minutes during TTD (configurable in New Session → Others)
 
 ## v1.12
 

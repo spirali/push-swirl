@@ -26,6 +26,7 @@ fun NewSessionScreen(viewModel: SessionViewModel) {
     var actionTime by remember { mutableStateOf(viewModel.sessionConfig.actionTime) }
     var recordDepth by remember { mutableStateOf(viewModel.sessionConfig.recordDepth) }
     var addTagsNoteAtEnd by remember { mutableStateOf(viewModel.sessionConfig.addTagsNoteAtEnd) }
+    var blindedTtdTimer by remember { mutableStateOf(viewModel.sessionConfig.blindedTtdTimer) }
     var selectedTab by remember { mutableStateOf(0) }
 
     Scaffold(
@@ -75,7 +76,7 @@ fun NewSessionScreen(viewModel: SessionViewModel) {
                         Spacer(modifier = Modifier.weight(1f))
                         Button(
                             onClick = {
-                                viewModel.updateConfig(SessionConfig(small, medium, large, xl, actionTime, recordDepth, addTagsNoteAtEnd))
+                                viewModel.updateConfig(SessionConfig(small, medium, large, xl, actionTime, recordDepth, addTagsNoteAtEnd, blindedTtdTimer))
                                 viewModel.startSession()
                             },
                             modifier = Modifier
@@ -170,6 +171,26 @@ fun NewSessionScreen(viewModel: SessionViewModel) {
                                     )
                                 )
                             }
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Blinded TTD timer",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onBackground
+                                )
+                                Checkbox(
+                                    checked = blindedTtdTimer,
+                                    onCheckedChange = { blindedTtdTimer = it },
+                                    colors = CheckboxDefaults.colors(
+                                        checkedColor = MaterialTheme.colorScheme.primary
+                                    )
+                                )
+                            }
                         }
                     }
                 }
@@ -177,7 +198,7 @@ fun NewSessionScreen(viewModel: SessionViewModel) {
                 Column(modifier = Modifier.fillMaxSize()) {
                     Button(
                         onClick = {
-                            viewModel.updateConfig(SessionConfig(small, medium, large, xl, actionTime, recordDepth, addTagsNoteAtEnd))
+                            viewModel.updateConfig(SessionConfig(small, medium, large, xl, actionTime, recordDepth, addTagsNoteAtEnd, blindedTtdTimer))
                             viewModel.startSession()
                         },
                         modifier = Modifier
@@ -263,6 +284,26 @@ fun NewSessionScreen(viewModel: SessionViewModel) {
                                 Checkbox(
                                     checked = addTagsNoteAtEnd,
                                     onCheckedChange = { addTagsNoteAtEnd = it },
+                                    colors = CheckboxDefaults.colors(
+                                        checkedColor = MaterialTheme.colorScheme.primary
+                                    )
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Blinded TTD timer",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onBackground
+                                )
+                                Checkbox(
+                                    checked = blindedTtdTimer,
+                                    onCheckedChange = { blindedTtdTimer = it },
                                     colors = CheckboxDefaults.colors(
                                         checkedColor = MaterialTheme.colorScheme.primary
                                     )

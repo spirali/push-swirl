@@ -39,7 +39,8 @@ data class SessionConfig(
     val xl: PhaseDuration = PhaseDuration.SKIP,
     val actionTime: Int = 15,
     val recordDepth: Boolean = false,
-    val addTagsNoteAtEnd: Boolean = false
+    val addTagsNoteAtEnd: Boolean = false,
+    val blindedTtdTimer: Boolean = false
 ) : Parcelable {
     fun getDuration(size: PhaseSize): PhaseDuration {
         return when (size) {

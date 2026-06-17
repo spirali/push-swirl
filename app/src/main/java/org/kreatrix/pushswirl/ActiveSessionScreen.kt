@@ -134,6 +134,9 @@ fun ActiveSessionScreen(viewModel: SessionViewModel) {
 
 @Composable
 fun TTDView(viewModel: SessionViewModel, phase: PhaseSize, isWideScreen: Boolean = false) {
+    val blinded = viewModel.sessionConfig.blindedTtdTimer
+    val ttdDisplay = if (blinded) formatTimeBlinded(viewModel.ttdSeconds) else formatTime(viewModel.ttdSeconds)
+
     if (isWideScreen) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -158,7 +161,7 @@ fun TTDView(viewModel: SessionViewModel, phase: PhaseSize, isWideScreen: Boolean
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = formatTime(viewModel.ttdSeconds),
+                    text = ttdDisplay,
                     fontSize = 48.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.secondary
@@ -190,7 +193,7 @@ fun TTDView(viewModel: SessionViewModel, phase: PhaseSize, isWideScreen: Boolean
             )
             Spacer(modifier = Modifier.height(32.dp))
             Text(
-                text = formatTime(viewModel.ttdSeconds),
+                text = ttdDisplay,
                 fontSize = 64.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.secondary
@@ -1029,4 +1032,9 @@ private fun formatTime(seconds: Long): String {
     val mins = seconds / 60
     val secs = seconds % 60
     return String.format("%d:%02d", mins, secs)
+}
+
+private fun formatTimeBlinded(seconds: Long): String {
+    val secs = seconds % 60
+    return String.format("??:%02d", secs)
 }
