@@ -44,7 +44,8 @@ class SessionStorage(private val context: Context) {
     fun loadSessions(): List<Session> {
         val json = prefs.getString("sessions", null) ?: return emptyList()
         val type = object : TypeToken<List<Session>>() {}.type
-        return gson.fromJson(json, type)
+        val raw: List<Session> = gson.fromJson(json, type) ?: return emptyList()
+        return raw.map { it.withNullDefaults() }
     }
 
     fun addSession(session: Session) {
@@ -182,6 +183,28 @@ class SessionStorage(private val context: Context) {
         return if (v == -1L) null else v
     }
 
+    fun saveTags(tags: List<Tag>) {
+        prefs.edit().putString("tags", gson.toJson(tags)).apply()
+    }
+
+    fun loadTags(): List<Tag> {
+        val json = prefs.getString("tags", null)
+        return if (json != null) {
+            try {
+                gson.fromJson(json, object : TypeToken<List<Tag>>() {}.type) ?: emptyList()
+            } catch (e: Exception) { emptyList() }
+        } else {
+            val defaults = listOf(
+                Tag(name = "Pain",        color = TagColor.RED),
+                Tag(name = "Disruption",  color = TagColor.ORANGE),
+                Tag(name = "Good",        color = TagColor.GREEN),
+                Tag(name = "Painkillers", color = TagColor.BLUE)
+            )
+            saveTags(defaults)
+            defaults
+        }
+    }
+
     fun saveStatsFilter(days: Int?, excludedKeys: Set<Long?>) {
         prefs.edit()
             .putInt("stats_filter_days", days ?: -1)
@@ -270,6 +293,7 @@ class SessionStorage(private val context: Context) {
             appVersion = getAppVersion(),
             day0Date = loadDay0Date()?.let { isoFormat.format(Date(it)) },
             milestones = loadMilestones().map { MilestoneExport(isoFormat.format(Date(it.date)), it.comment) },
+            tags = loadTags().map { TagExport(it.id, it.name, it.color.name) },
             sessions = sessions.map { it.toExport() }
         )
 
@@ -393,7 +417,9 @@ class SessionStorage(private val context: Context) {
                         config = config,
                         phases = sessionExport.phases,
                         totalSeconds = sessionExport.totalSeconds,
-                        timestamp = timestamp
+                        timestamp = timestamp,
+                        tagIds = sessionExport.tagIds ?: emptyList(),
+                        note = sessionExport.note ?: ""
                     )
                     currentSessions.add(session)
                     importedCount++
@@ -423,6 +449,26 @@ class SessionStorage(private val context: Context) {
                     }.sortedBy { it.date }
                     saveMilestones(restored)
                 } catch (_: Exception) {}
+            }
+
+            // Merge imported tags — add any tag whose UUID is not already in local storage
+            exportData.tags?.let { exportedTags ->
+                val localTags = loadTags().toMutableList()
+                val localTagIds = localTags.map { it.id }.toHashSet()
+                var changed = false
+                for (tagExport in exportedTags) {
+                    if (tagExport.id !in localTagIds) {
+                        try {
+                            localTags += Tag(
+                                id = tagExport.id,
+                                name = tagExport.name,
+                                color = TagColor.valueOf(tagExport.color)
+                            )
+                            changed = true
+                        } catch (_: IllegalArgumentException) {}
+                    }
+                }
+                if (changed) saveTags(localTags)
             }
 
             ImportResult.Success(importedCount, skippedCount)
@@ -588,11 +634,14 @@ data class MilestoneExport(
     val comment: String = ""
 )
 
+data class TagExport(val id: String, val name: String, val color: String)
+
 data class ExportData(
     val exportDate: String,
     val appVersion: String,
     val day0Date: String? = null,
     val milestones: List<MilestoneExport>? = null,
+    val tags: List<TagExport>? = null,
     val sessions: List<SessionExport>
 )
 
@@ -603,7 +652,17 @@ data class SessionExport(
     val id: String,
     val phases: List<PhaseData>,
     val totalSeconds: Long,
-    val timestamp: String
+    val timestamp: String,
+    val tagIds: List<String>? = null,
+    val note: String? = null
+)
+
+// Gson sets missing fields to null even on non-nullable Kotlin types.
+// This patches sessions deserialized from older JSON that predate tagIds/note.
+@Suppress("SENSELESS_COMPARISON")
+private fun Session.withNullDefaults() = copy(
+    tagIds = if (tagIds == null) emptyList() else tagIds,
+    note = if (note == null) "" else note
 )
 
 /**
@@ -615,7 +674,9 @@ fun Session.toExport(): SessionExport {
         id = id,
         phases = phases,
         totalSeconds = totalSeconds,
-        timestamp = isoFormat.format(Date(timestamp))
+        timestamp = isoFormat.format(Date(timestamp)),
+        tagIds = tagIds.ifEmpty { null },
+        note = note.ifBlank { null }
     )
 }
 

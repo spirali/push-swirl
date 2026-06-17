@@ -2,6 +2,8 @@ package org.kreatrix.pushswirl
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -10,6 +12,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -333,7 +336,9 @@ fun SettingsScreen(viewModel: SessionViewModel) {
                         }
                     }
 
-                    2 -> Column(
+                    2 -> TagsTabContent(viewModel)
+
+                    3 -> Column(
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(24.dp)
@@ -442,9 +447,15 @@ fun SettingsScreen(viewModel: SessionViewModel) {
                             modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                         )
                         NavigationDrawerItem(
-                            label = { Text("App") },
+                            label = { Text("Tags") },
                             selected = selectedTab == 2,
                             onClick = { selectedTab = 2 },
+                            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                        )
+                        NavigationDrawerItem(
+                            label = { Text("App") },
+                            selected = selectedTab == 3,
+                            onClick = { selectedTab = 3 },
                             modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                         )
                     }
@@ -474,6 +485,11 @@ fun SettingsScreen(viewModel: SessionViewModel) {
                         Tab(
                             selected = selectedTab == 2,
                             onClick = { selectedTab = 2 },
+                            text = { Text("Tags") }
+                        )
+                        Tab(
+                            selected = selectedTab == 3,
+                            onClick = { selectedTab = 3 },
                             text = { Text("App") }
                         )
                     }
@@ -482,6 +498,171 @@ fun SettingsScreen(viewModel: SessionViewModel) {
             }
         }
     }
+}
+
+@Composable
+private fun TagsTabContent(viewModel: SessionViewModel) {
+    var showDialog by remember { mutableStateOf(false) }
+    var editingTag by remember { mutableStateOf<Tag?>(null) }
+    var pendingDeleteTag by remember { mutableStateOf<Tag?>(null) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+            .verticalScroll(rememberScrollState())
+    ) {
+        Text(
+            text = "Tags",
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(bottom = 12.dp)
+        )
+
+        viewModel.tags.forEach { tag ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(16.dp)
+                            .background(tag.color.toComposeColor())
+                    )
+                    Text(tag.name, fontSize = 16.sp)
+                }
+                Row {
+                    TextButton(onClick = {
+                        editingTag = tag
+                        showDialog = true
+                    }) {
+                        Text("Edit")
+                    }
+                    TextButton(onClick = { pendingDeleteTag = tag }) {
+                        Text("Remove", color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedButton(
+            onClick = {
+                editingTag = null
+                showDialog = true
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Add tag")
+        }
+    }
+
+    if (showDialog) {
+        TagDialog(
+            initial = editingTag,
+            onDismiss = { showDialog = false },
+            onSave = { tag ->
+                if (editingTag == null) viewModel.addTag(tag)
+                else viewModel.updateTag(tag)
+                showDialog = false
+            }
+        )
+    }
+
+    if (pendingDeleteTag != null) {
+        AlertDialog(
+            onDismissRequest = { pendingDeleteTag = null },
+            title = { Text("Remove tag") },
+            text = { Text("Remove \"${pendingDeleteTag!!.name}\"?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.removeTag(pendingDeleteTag!!)
+                    pendingDeleteTag = null
+                }) { Text("Remove", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDeleteTag = null }) { Text("Cancel") }
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TagDialog(
+    initial: Tag?,
+    onDismiss: () -> Unit,
+    onSave: (Tag) -> Unit
+) {
+    var name by remember(initial) { mutableStateOf(initial?.name ?: "") }
+    var color by remember(initial) { mutableStateOf(initial?.color ?: TagColor.RED) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (initial == null) "Add tag" else "Edit tag") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    TagColor.entries.forEach { tagColor ->
+                        val isSelected = color == tagColor
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .background(tagColor.toComposeColor())
+                                .border(
+                                    width = if (isSelected) 3.dp else 1.dp,
+                                    color = if (isSelected) MaterialTheme.colorScheme.onSurface
+                                            else MaterialTheme.colorScheme.outline
+                                )
+                                .clickable { color = tagColor }
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (name.isNotBlank()) {
+                        onSave(
+                            if (initial == null) Tag(name = name.trim(), color = color)
+                            else initial.copy(name = name.trim(), color = color)
+                        )
+                    }
+                },
+                enabled = name.isNotBlank()
+            ) { Text("Save") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+fun TagColor.toComposeColor(): Color = when (this) {
+    TagColor.RED    -> Color(0xFFE53935)
+    TagColor.ORANGE -> Color(0xFFFB8C00)
+    TagColor.GREEN  -> Color(0xFF43A047)
+    TagColor.BLUE   -> Color(0xFF1E88E5)
 }
 
 private fun utcMidnightToLocalMidnight(utcMillis: Long): Long {

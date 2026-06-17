@@ -1,10 +1,10 @@
 package org.kreatrix.pushswirl
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -13,7 +13,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.text.SimpleDateFormat
@@ -74,10 +73,11 @@ fun SessionHistoryScreen(viewModel: SessionViewModel) {
                     items(viewModel.sortedSessions, key = { it.id }) { session ->
                         SessionCard(
                             session = session,
+                            allTags = viewModel.tags,
                             expanded = expandedIds[session.id] == true,
                             onExpandedChange = { expandedIds[session.id] = it },
-                            onDelete = { viewModel.deleteSession(session.id) },
-                            onUpdate = { viewModel.updateSession(it) }
+                            onEdit = { viewModel.navigateTo(AppScreen.EditSession(session)) },
+                            onDelete = { viewModel.deleteSession(session.id) }
                         )
                     }
                 }
@@ -137,53 +137,21 @@ private fun SortControlsRow(
     }
 }
 
-private data class PhaseEditState(
-    val ttdMinutes: String,
-    val ttdSeconds: String,
-    val depthCm: String
-)
-
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SessionCard(
     session: Session,
+    allTags: List<Tag>,
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
-    onDelete: () -> Unit,
-    onUpdate: (Session) -> Unit
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
-    var isEditing by remember { mutableStateOf(false) }
-    var editPhases by remember { mutableStateOf<List<PhaseEditState>>(emptyList()) }
-
-    fun startEdit() {
-        editPhases = session.phases.map { phase ->
-            PhaseEditState(
-                ttdMinutes = (phase.ttdSeconds / 60).toString(),
-                ttdSeconds = (phase.ttdSeconds % 60).toString(),
-                depthCm = phase.depthCm?.let {
-                    if (it % 1 == 0f) it.toInt().toString() else String.format("%.1f", it)
-                } ?: ""
-            )
-        }
-        isEditing = true
-    }
-
-    fun saveEdit() {
-        val updatedPhases = session.phases.mapIndexed { i, phase ->
-            val mins = editPhases[i].ttdMinutes.toLongOrNull() ?: 0L
-            val secs = editPhases[i].ttdSeconds.toLongOrNull() ?: 0L
-            val newDepth = if (phase.depthCm != null) editPhases[i].depthCm.toFloatOrNull() else null
-            phase.copy(ttdSeconds = mins * 60 + secs, depthCm = newDepth)
-        }
-        onUpdate(session.copy(phases = updatedPhases))
-        isEditing = false
-    }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
@@ -210,38 +178,31 @@ fun SessionCard(
                         color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
                     )
                 }
-
-                Row {
-                    if (isEditing) {
-                        TextButton(onClick = { saveEdit() }) { Text("Save") }
-                        TextButton(onClick = { isEditing = false }) { Text("Cancel") }
-                    } else {
-                        TextButton(onClick = { onExpandedChange(!expanded) }) {
-                            Text(if (expanded) "Hide" else "Details")
-                        }
-                    }
+                TextButton(onClick = { onExpandedChange(!expanded) }) {
+                    Text(if (expanded) "Hide" else "Details")
                 }
             }
 
-            if (expanded || isEditing) {
+            if (expanded) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Divider()
                 Spacer(modifier = Modifier.height(4.dp))
 
-                if (!isEditing) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.End)) {
-                        TextButton(
-                            onClick = { startEdit() },
-                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
-                        ) { Text("Edit", fontSize = 15.sp) }
-                        TextButton(
-                            onClick = { showDeleteDialog = true },
-                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
-                        ) { Text("Delete", fontSize = 15.sp, color = MaterialTheme.colorScheme.error) }
-                    }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.End)
+                ) {
+                    TextButton(
+                        onClick = onEdit,
+                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
+                    ) { Text("Edit", fontSize = 15.sp) }
+                    TextButton(
+                        onClick = { showDeleteDialog = true },
+                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
+                    ) { Text("Delete", fontSize = 15.sp, color = MaterialTheme.colorScheme.error) }
                 }
 
-                session.phases.forEachIndexed { i, phase ->
+                session.phases.forEach { phase ->
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -266,106 +227,90 @@ fun SessionCard(
                                     }
                                 }
                             }
-                            if (isEditing) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Text("TTD:", fontSize = 13.sp)
-                                    OutlinedTextField(
-                                        value = editPhases[i].ttdMinutes,
-                                        onValueChange = {
-                                            editPhases = editPhases.toMutableList().also { list ->
-                                                list[i] = list[i].copy(ttdMinutes = it.filter(Char::isDigit))
-                                            }
-                                        },
-                                        label = { Text("min") },
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                        singleLine = true,
-                                        modifier = Modifier.width(64.dp)
-                                    )
-                                    OutlinedTextField(
-                                        value = editPhases[i].ttdSeconds,
-                                        onValueChange = {
-                                            editPhases = editPhases.toMutableList().also { list ->
-                                                list[i] = list[i].copy(ttdSeconds = it.filter(Char::isDigit))
-                                            }
-                                        },
-                                        label = { Text("sec") },
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                        singleLine = true,
-                                        modifier = Modifier.width(64.dp)
-                                    )
-                                }
+                            Text(
+                                text = "TTD: ${formatDuration(phase.ttdSeconds)}",
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            if (phase.wasFinishedEarly) {
+                                Text(
+                                    text = "Dilation: ${formatDurationSeconds(phase.actualDilationSeconds)} / ${phase.dilationMinutes}m planned",
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.tertiary
+                                )
                             } else {
                                 Text(
-                                    text = "TTD: ${formatDuration(phase.ttdSeconds)}",
-                                    fontSize = 14.sp,
-                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                                    text = "Dilation: ${phase.dilationMinutes}m",
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                                )
+                            }
+                            if (phase.actionTime != null) {
+                                Text(
+                                    text = "Actions: ${phase.actionTime}s",
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                                 )
                             }
                         }
-
-                        if (!isEditing) {
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                if (phase.wasFinishedEarly) {
-                                    Text(
-                                        text = "Dilation: ${formatDurationSeconds(phase.actualDilationSeconds)} / ${phase.dilationMinutes}m planned",
-                                        fontSize = 13.sp,
-                                        color = MaterialTheme.colorScheme.tertiary
-                                    )
-                                } else {
-                                    Text(
-                                        text = "Dilation: ${phase.dilationMinutes}m",
-                                        fontSize = 13.sp,
-                                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                                    )
-                                }
-                                if (phase.actionTime != null) {
-                                    Text(
-                                        text = "Actions: ${phase.actionTime}s",
-                                        fontSize = 13.sp,
-                                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                                    )
-                                }
-                            }
-                        }
-
                         if (phase.depthCm != null) {
                             Spacer(modifier = Modifier.height(4.dp))
-                            if (isEditing) {
-                                OutlinedTextField(
-                                    value = editPhases[i].depthCm,
-                                    onValueChange = {
-                                        editPhases = editPhases.toMutableList().also { list ->
-                                            list[i] = list[i].copy(depthCm = it)
-                                        }
-                                    },
-                                    label = { Text("Depth (cm)") },
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                    singleLine = true,
-                                    modifier = Modifier.width(140.dp)
-                                )
+                            val depthFormatted = if (phase.depthCm % 1 == 0f) {
+                                "${phase.depthCm.toInt()} cm"
                             } else {
-                                val depthFormatted = if (phase.depthCm % 1 == 0f) {
-                                    "${phase.depthCm.toInt()} cm"
-                                } else {
-                                    String.format("%.1f cm", phase.depthCm)
-                                }
-                                Text(
-                                    text = "Depth: $depthFormatted",
-                                    fontSize = 13.sp,
-                                    color = MaterialTheme.colorScheme.secondary,
-                                    fontWeight = FontWeight.Medium
-                                )
+                                String.format("%.1f cm", phase.depthCm)
                             }
+                            Text(
+                                text = "Depth: $depthFormatted",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.secondary,
+                                fontWeight = FontWeight.Medium
+                            )
                         }
                     }
                     Spacer(modifier = Modifier.height(12.dp))
+                }
+
+                val appliedTags = allTags.filter { it.id in session.tagIds }
+                if (appliedTags.isNotEmpty()) {
+                    Divider()
+                    Spacer(modifier = Modifier.height(8.dp))
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        appliedTags.forEach { tag ->
+                            SuggestionChip(
+                                onClick = {},
+                                label = { Text(tag.name) },
+                                icon = {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(10.dp)
+                                            .background(tag.color.toComposeColor())
+                                    )
+                                }
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+                if (session.note.isNotBlank()) {
+                    Divider()
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = session.note,
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
             }
         }

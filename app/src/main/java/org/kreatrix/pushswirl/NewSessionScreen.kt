@@ -25,6 +25,7 @@ fun NewSessionScreen(viewModel: SessionViewModel) {
     var xl by remember { mutableStateOf(viewModel.sessionConfig.xl) }
     var actionTime by remember { mutableStateOf(viewModel.sessionConfig.actionTime) }
     var recordDepth by remember { mutableStateOf(viewModel.sessionConfig.recordDepth) }
+    var addTagsNoteAtEnd by remember { mutableStateOf(viewModel.sessionConfig.addTagsNoteAtEnd) }
     var selectedTab by remember { mutableStateOf(0) }
 
     Scaffold(
@@ -74,7 +75,7 @@ fun NewSessionScreen(viewModel: SessionViewModel) {
                         Spacer(modifier = Modifier.weight(1f))
                         Button(
                             onClick = {
-                                viewModel.updateConfig(SessionConfig(small, medium, large, xl, actionTime, recordDepth))
+                                viewModel.updateConfig(SessionConfig(small, medium, large, xl, actionTime, recordDepth, addTagsNoteAtEnd))
                                 viewModel.startSession()
                             },
                             modifier = Modifier
@@ -149,6 +150,26 @@ fun NewSessionScreen(viewModel: SessionViewModel) {
                                     )
                                 )
                             }
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Add tags/note at end",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onBackground
+                                )
+                                Checkbox(
+                                    checked = addTagsNoteAtEnd,
+                                    onCheckedChange = { addTagsNoteAtEnd = it },
+                                    colors = CheckboxDefaults.colors(
+                                        checkedColor = MaterialTheme.colorScheme.primary
+                                    )
+                                )
+                            }
                         }
                     }
                 }
@@ -156,7 +177,7 @@ fun NewSessionScreen(viewModel: SessionViewModel) {
                 Column(modifier = Modifier.fillMaxSize()) {
                     Button(
                         onClick = {
-                            viewModel.updateConfig(SessionConfig(small, medium, large, xl, actionTime, recordDepth))
+                            viewModel.updateConfig(SessionConfig(small, medium, large, xl, actionTime, recordDepth, addTagsNoteAtEnd))
                             viewModel.startSession()
                         },
                         modifier = Modifier
@@ -222,6 +243,26 @@ fun NewSessionScreen(viewModel: SessionViewModel) {
                                 Checkbox(
                                     checked = recordDepth,
                                     onCheckedChange = { recordDepth = it },
+                                    colors = CheckboxDefaults.colors(
+                                        checkedColor = MaterialTheme.colorScheme.primary
+                                    )
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Add tags/note at end",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onBackground
+                                )
+                                Checkbox(
+                                    checked = addTagsNoteAtEnd,
+                                    onCheckedChange = { addTagsNoteAtEnd = it },
                                     colors = CheckboxDefaults.colors(
                                         checkedColor = MaterialTheme.colorScheme.primary
                                     )

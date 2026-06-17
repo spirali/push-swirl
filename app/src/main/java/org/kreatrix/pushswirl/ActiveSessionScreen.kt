@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.view.WindowManager
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -49,8 +50,12 @@ fun ActiveSessionScreen(viewModel: SessionViewModel) {
     }
 
     var showCancelDialog by remember { mutableStateOf(false) }
+    val isTagNote = viewModel.sessionState is SessionState.TagNoteInput
 
-    BackHandler { showCancelDialog = true }
+    BackHandler {
+        if (isTagNote) viewModel.confirmTagNote(emptyList(), "")
+        else showCancelDialog = true
+    }
 
     Scaffold(
         topBar = {
@@ -61,7 +66,10 @@ fun ActiveSessionScreen(viewModel: SessionViewModel) {
                     titleContentColor = MaterialTheme.colorScheme.onPrimary
                 ),
                 actions = {
-                    TextButton(onClick = { showCancelDialog = true }) {
+                    TextButton(onClick = {
+                        if (isTagNote) viewModel.confirmTagNote(emptyList(), "")
+                        else showCancelDialog = true
+                    }) {
                         Text("Cancel", color = MaterialTheme.colorScheme.onPrimary)
                     }
                 }
@@ -85,6 +93,7 @@ fun ActiveSessionScreen(viewModel: SessionViewModel) {
                     is SessionState.TTD -> TTDView(viewModel, state.phase, isWideScreen = isWideScreen)
                     is SessionState.DepthInput -> DepthInputView(viewModel, state.phase, isWideScreen = isWideScreen)
                     is SessionState.Dilation -> DilationView(viewModel, state.phase, state.action, isWideScreen = isWideScreen)
+                    is SessionState.TagNoteInput -> TagNoteView(viewModel, isWideScreen = isWideScreen)
                     else -> {}
                 }
             }
@@ -935,6 +944,85 @@ private fun VibrationSettingsDialog(
             TextButton(onClick = onDismiss) { Text("Cancel") }
         }
     )
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+fun TagNoteView(viewModel: SessionViewModel, isWideScreen: Boolean = false) {
+    var tagIds by remember { mutableStateOf<List<String>>(emptyList()) }
+    var note   by remember { mutableStateOf("") }
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(
+            text = "Session Complete",
+            fontSize = if (isWideScreen) 24.sp else 32.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Spacer(modifier = Modifier.height(32.dp))
+
+        if (viewModel.tags.isNotEmpty()) {
+            Text(
+                text = "Tags",
+                fontSize = 16.sp,
+                color = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.align(Alignment.Start)
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                viewModel.tags.forEach { tag ->
+                    val isSelected = tag.id in tagIds
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = {
+                            tagIds = if (isSelected) tagIds - tag.id else tagIds + tag.id
+                        },
+                        label = { Text(tag.name) },
+                        leadingIcon = {
+                            Box(
+                                modifier = Modifier
+                                    .size(10.dp)
+                                    .background(tag.color.toComposeColor())
+                            )
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+
+        OutlinedTextField(
+            value = note,
+            onValueChange = { note = it },
+            label = { Text("Note") },
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 3,
+            maxLines = 6
+        )
+        Spacer(modifier = Modifier.height(48.dp))
+        Button(
+            onClick = { viewModel.confirmTagNote(tagIds, note.trim()) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary
+            )
+        ) {
+            Text("Done", fontSize = 18.sp)
+        }
+    }
 }
 
 private fun formatTime(seconds: Long): String {

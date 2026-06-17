@@ -6,6 +6,15 @@ import java.util.UUID
 
 enum class ThemeMode { AUTO, LIGHT, DARK }
 
+enum class TagColor { RED, ORANGE, GREEN, BLUE }
+
+@Parcelize
+data class Tag(
+    val id: String = UUID.randomUUID().toString(),
+    val name: String,
+    val color: TagColor
+) : Parcelable
+
 enum class PhaseSize {
     SMALL, MEDIUM, LARGE, XL
 }
@@ -29,7 +38,8 @@ data class SessionConfig(
     val large: PhaseDuration = PhaseDuration.TEN,
     val xl: PhaseDuration = PhaseDuration.SKIP,
     val actionTime: Int = 15,
-    val recordDepth: Boolean = false
+    val recordDepth: Boolean = false,
+    val addTagsNoteAtEnd: Boolean = false
 ) : Parcelable {
     fun getDuration(size: PhaseSize): PhaseDuration {
         return when (size) {
@@ -78,7 +88,9 @@ data class Session(
     val config: SessionConfig,
     val phases: List<PhaseData>,
     val totalSeconds: Long,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val tagIds: List<String> = emptyList(),
+    val note: String = ""
 ) : Parcelable
 
 data class SessionStats(

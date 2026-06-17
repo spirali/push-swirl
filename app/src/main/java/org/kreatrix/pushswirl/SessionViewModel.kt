@@ -18,6 +18,7 @@ sealed class AppScreen {
     object NewSession : AppScreen()
     data class ActiveSession(val config: SessionConfig) : AppScreen()
     object SessionHistory : AppScreen()
+    data class EditSession(val session: Session) : AppScreen()
     object Statistics : AppScreen()
     object StatsFilter : AppScreen()
     object Settings : AppScreen()
@@ -29,6 +30,7 @@ sealed class SessionState {
     data class TTD(val phase: PhaseSize) : SessionState()
     data class DepthInput(val phase: PhaseSize) : SessionState()
     data class Dilation(val phase: PhaseSize, val action: DilationAction) : SessionState()
+    object TagNoteInput : SessionState()
 }
 
 enum class HistorySortField(val label: String) {
@@ -59,6 +61,8 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     var countdownIntervalMinutes by mutableIntStateOf(storage.loadCountdownIntervalMinutes())
     var day0Date by mutableStateOf(storage.loadDay0Date())
     var milestones by mutableStateOf(storage.loadMilestones())
+    var tags by mutableStateOf(storage.loadTags())
+        private set
 
     // Interrupted session resume
     var pendingResume by mutableStateOf<ActiveSessionSnapshot?>(null)
@@ -115,6 +119,10 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
 
     // Store depth for current phase
     private var currentPhaseDepth: Float? = null
+
+    // Pending tags/note collected on the TagNoteInput screen before finishSession()
+    private var pendingTagIds: List<String> = emptyList()
+    private var pendingNote: String = ""
 
     // Timer jobs
     private var ttdJob: Job? = null
@@ -323,6 +331,21 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         val updated = milestones.map { if (it == milestone) it.copy(comment = newComment) else it }
         milestones = updated
         storage.saveMilestones(updated)
+    }
+
+    fun addTag(tag: Tag) {
+        tags = tags + tag
+        storage.saveTags(tags)
+    }
+
+    fun removeTag(tag: Tag) {
+        tags = tags.filter { it.id != tag.id }
+        storage.saveTags(tags)
+    }
+
+    fun updateTag(updated: Tag) {
+        tags = tags.map { if (it.id == updated.id) updated else it }
+        storage.saveTags(tags)
     }
 
     // ============================================================================
@@ -598,9 +621,18 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         if (currentPhaseIndex < activePhases.size) {
             startTTDForCurrentPhase()
             saveSessionSnapshot()
+        } else if (sessionConfig.addTagsNoteAtEnd) {
+            sessionState = SessionState.TagNoteInput
+            saveSessionSnapshot()
         } else {
             finishSession()
         }
+    }
+
+    fun confirmTagNote(tagIds: List<String>, note: String) {
+        pendingTagIds = tagIds
+        pendingNote   = note
+        finishSession()
     }
 
     private fun finishSession() {
@@ -610,7 +642,9 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
             id = sessionId,
             config = sessionConfig,
             phases = completedPhases.toList(),
-            totalSeconds = totalTime
+            totalSeconds = totalTime,
+            tagIds = pendingTagIds,
+            note = pendingNote
         )
         storage.saveOrUpdateSession(session)
         storage.clearActiveSessionSnapshot()
@@ -756,17 +790,26 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         dilationPaused = false
         earlyFinishSecondsRemaining = null
         currentPhaseDepth = null
+        pendingTagIds = emptyList()
+        pendingNote   = ""
     }
 
     private fun saveSessionSnapshot() {
         if (sessionState == SessionState.Idle) return
-        val phase = activePhases.getOrNull(currentPhaseIndex) ?: return
 
         val stateType = when (sessionState) {
             is SessionState.TTD -> "TTD"
             is SessionState.DepthInput -> "DEPTH_INPUT"
             is SessionState.Dilation -> "DILATION"
+            is SessionState.TagNoteInput -> "TAG_NOTE_INPUT"
             else -> return
+        }
+
+        // TagNoteInput: all phases done, currentPhaseIndex is past end — use last phase
+        val phase = if (sessionState is SessionState.TagNoteInput) {
+            activePhases.lastOrNull() ?: return
+        } else {
+            activePhases.getOrNull(currentPhaseIndex) ?: return
         }
 
         val ttdElapsedMs = ttdAccumulatedMs +
@@ -794,7 +837,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
             dilationPaused = dilationPaused,
             earlyFinishSecondsRemaining = earlyFinishSecondsRemaining,
             currentPhaseDepth = currentPhaseDepth,
-            sessionEndWallClock = if (sessionState is SessionState.DepthInput) sessionEndTime else 0L
+            sessionEndWallClock = if (sessionState is SessionState.DepthInput || sessionState is SessionState.TagNoteInput) sessionEndTime else 0L
         ))
     }
 
@@ -848,6 +891,13 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
                 if (sessionConfig.recordDepth) {
                     currentDepthInput = storage.getLastDepthForSize(phase)
                 }
+            }
+
+            "TAG_NOTE_INPUT" -> {
+                sessionEndTime = if (snapshot.sessionEndWallClock > 0)
+                    snapshot.sessionEndWallClock else System.currentTimeMillis()
+                finishSession()
+                return
             }
 
             "DILATION" -> {
