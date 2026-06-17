@@ -579,10 +579,18 @@ private fun TagsTabContent(viewModel: SessionViewModel) {
     }
 
     if (pendingDeleteTag != null) {
+        val errorColor = MaterialTheme.colorScheme.error
         AlertDialog(
             onDismissRequest = { pendingDeleteTag = null },
             title = { Text("Remove tag") },
-            text = { Text("Remove \"${pendingDeleteTag!!.name}\"?") },
+            text = {
+                Text(buildAnnotatedString {
+                    append("Remove \"${pendingDeleteTag!!.name}\"?\n\n")
+                    withStyle(SpanStyle(color = errorColor)) {
+                        append("This tag will be removed from all sessions.")
+                    }
+                })
+            },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.removeTag(pendingDeleteTag!!)

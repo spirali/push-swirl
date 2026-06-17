@@ -51,6 +51,7 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
     val stats = viewModel.stats
     val statsFilterDays = viewModel.statsFilterDays
     val statsExcludedPeriodKeys = viewModel.statsExcludedPeriodKeys
+    val statsFilterTagIds = viewModel.statsFilterTagIds
     val sessions = viewModel.sessions
 
     val day0Date = viewModel.day0Date
@@ -65,13 +66,15 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
     }
 
     // Compute filtered + sorted sessions for charts
-    val chartData = remember(sessions, statsFilterDays, statsExcludedPeriodKeys, day0Date, onSurface, ttdVisibleSizes, milestones) {
+    val chartData = remember(sessions, statsFilterDays, statsExcludedPeriodKeys, statsFilterTagIds, day0Date, onSurface, ttdVisibleSizes, milestones) {
         val cutoff = statsFilterDays?.let { System.currentTimeMillis() - it * 24L * 60 * 60 * 1000 }
         val sortedMilestones = milestones.sortedBy { it.date }
         val filtered = run {
             var result = if (cutoff != null) sessions.filter { it.timestamp >= cutoff } else sessions
             if (statsExcludedPeriodKeys.isNotEmpty())
                 result = result.filter { sessionPeriodKey(it, sortedMilestones) !in statsExcludedPeriodKeys }
+            if (statsFilterTagIds.isNotEmpty())
+                result = result.filter { session -> session.tagIds.any { it in statsFilterTagIds } }
             result
         }
         val sorted = filtered.sortedBy { it.timestamp }
@@ -161,13 +164,15 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
     val (ttdSeries, gapSeries, lengthSeries) = chartData
 
     // Stacked TTD layers + sum regression lines
-    val ttdStackedData = remember(sessions, statsFilterDays, statsExcludedPeriodKeys, day0Date, ttdVisibleSizes, milestones) {
+    val ttdStackedData = remember(sessions, statsFilterDays, statsExcludedPeriodKeys, statsFilterTagIds, day0Date, ttdVisibleSizes, milestones) {
         val cutoff = statsFilterDays?.let { System.currentTimeMillis() - it * 24L * 60 * 60 * 1000 }
         val sortedMilestones = milestones.sortedBy { it.date }
         val filtered = run {
             var result = if (cutoff != null) sessions.filter { it.timestamp >= cutoff } else sessions
             if (statsExcludedPeriodKeys.isNotEmpty())
                 result = result.filter { sessionPeriodKey(it, sortedMilestones) !in statsExcludedPeriodKeys }
+            if (statsFilterTagIds.isNotEmpty())
+                result = result.filter { session -> session.tagIds.any { it in statsFilterTagIds } }
             result
         }
         val sorted = filtered.sortedBy { it.timestamp }
@@ -192,13 +197,15 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
     val ttdStackedLayers = ttdStackedData
 
     // Per-phase scatter: X = gap to previous session (hours), Y = TTD (seconds)
-    val ttdGapScatter: List<ScatterData> = remember(sessions, statsFilterDays, statsExcludedPeriodKeys, day0Date, milestones) {
+    val ttdGapScatter: List<ScatterData> = remember(sessions, statsFilterDays, statsExcludedPeriodKeys, statsFilterTagIds, day0Date, milestones) {
         val cutoff2 = statsFilterDays?.let { System.currentTimeMillis() - it * 24L * 60 * 60 * 1000 }
         val sortedMilestones2 = milestones.sortedBy { it.date }
         val filtered = run {
             var result = if (cutoff2 != null) sessions.filter { it.timestamp >= cutoff2 } else sessions
             if (statsExcludedPeriodKeys.isNotEmpty())
                 result = result.filter { sessionPeriodKey(it, sortedMilestones2) !in statsExcludedPeriodKeys }
+            if (statsFilterTagIds.isNotEmpty())
+                result = result.filter { session -> session.tagIds.any { it in statsFilterTagIds } }
             result
         }
         val sorted = filtered.sortedBy { it.timestamp }
@@ -279,6 +286,9 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
             val total = milestones.size + 1
             val active = total - statsExcludedPeriodKeys.size
             append("  ·  $active/$total periods")
+        }
+        if (statsFilterTagIds.isNotEmpty()) {
+            append("  ·  ${statsFilterTagIds.size} tag${if (statsFilterTagIds.size == 1) "" else "s"}")
         }
     }
 

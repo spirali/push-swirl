@@ -42,6 +42,8 @@ fun EditSessionScreen(viewModel: SessionViewModel) {
             )
         })
     }
+    var editTotalMinutes by remember { mutableStateOf((session.totalSeconds / 60).toString()) }
+    var editTotalSeconds by remember { mutableStateOf((session.totalSeconds % 60).toString()) }
     var editTagIds by remember { mutableStateOf(session.tagIds) }
     var editNote   by remember { mutableStateOf(session.note) }
 
@@ -52,8 +54,15 @@ fun EditSessionScreen(viewModel: SessionViewModel) {
             val newDepth = if (phase.depthCm != null) editPhases[i].depthCm.replace(',', '.').toFloatOrNull() else null
             phase.copy(ttdSeconds = mins * 60 + secs, depthCm = newDepth)
         }
+        val totalMins = editTotalMinutes.toLongOrNull() ?: 0L
+        val totalSecs = editTotalSeconds.toLongOrNull() ?: 0L
         viewModel.updateSession(
-            session.copy(phases = updatedPhases, tagIds = editTagIds, note = editNote.trim())
+            session.copy(
+                phases = updatedPhases,
+                totalSeconds = totalMins * 60 + totalSecs,
+                tagIds = editTagIds,
+                note = editNote.trim()
+            )
         )
         viewModel.navigateTo(AppScreen.SessionHistory)
     }
@@ -141,6 +150,36 @@ fun EditSessionScreen(viewModel: SessionViewModel) {
                 if (i < session.phases.lastIndex) {
                     Divider()
                 }
+            }
+
+            Divider()
+
+            Text(
+                text = "Total Length",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = editTotalMinutes,
+                    onValueChange = { editTotalMinutes = it.filter(Char::isDigit) },
+                    label = { Text("min") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.width(80.dp)
+                )
+                OutlinedTextField(
+                    value = editTotalSeconds,
+                    onValueChange = { editTotalSeconds = it.filter(Char::isDigit) },
+                    label = { Text("sec") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.width(80.dp)
+                )
             }
 
             Divider()

@@ -205,14 +205,17 @@ class SessionStorage(private val context: Context) {
         }
     }
 
-    fun saveStatsFilter(days: Int?, excludedKeys: Set<Long?>) {
+    fun saveStatsFilter(days: Int?, excludedKeys: Set<Long?>, tagIds: Set<String>) {
         prefs.edit()
             .putInt("stats_filter_days", days ?: -1)
             .putString("stats_excluded_period_keys", gson.toJson(excludedKeys.toList()))
+            .putString("stats_filter_tag_ids", gson.toJson(tagIds.toList()))
             .apply()
     }
 
-    fun loadStatsFilter(): Pair<Int?, Set<Long?>> {
+    data class StatsFilter(val days: Int?, val excludedPeriodKeys: Set<Long?>, val tagIds: Set<String>)
+
+    fun loadStatsFilter(): StatsFilter {
         val days = prefs.getInt("stats_filter_days", 14).let { if (it == -1) null else it }
         val keysJson = prefs.getString("stats_excluded_period_keys", null)
         val keys: Set<Long?> = if (keysJson != null) {
@@ -222,7 +225,15 @@ class SessionStorage(private val context: Context) {
                 list.toSet()
             } catch (e: Exception) { emptySet() }
         } else emptySet()
-        return Pair(days, keys)
+        val tagIdsJson = prefs.getString("stats_filter_tag_ids", null)
+        val tagIds: Set<String> = if (tagIdsJson != null) {
+            try {
+                val type = object : TypeToken<List<String>>() {}.type
+                val list: List<String> = gson.fromJson(tagIdsJson, type)
+                list.toSet()
+            } catch (e: Exception) { emptySet() }
+        } else emptySet()
+        return StatsFilter(days, keys, tagIds)
     }
 
     fun getLastDepthForSize(size: PhaseSize): Float {

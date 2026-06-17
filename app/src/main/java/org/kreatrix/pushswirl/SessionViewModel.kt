@@ -177,14 +177,16 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     }
 
     private val savedFilter = storage.loadStatsFilter()
-    var statsFilterDays: Int? by mutableStateOf(savedFilter.first)
-    var statsExcludedPeriodKeys: Set<Long?> by mutableStateOf(savedFilter.second)
+    var statsFilterDays: Int? by mutableStateOf(savedFilter.days)
+    var statsExcludedPeriodKeys: Set<Long?> by mutableStateOf(savedFilter.excludedPeriodKeys)
+    var statsFilterTagIds: Set<String> by mutableStateOf(savedFilter.tagIds)
     var stats by mutableStateOf(recomputeStats())
 
-    fun updateStatsFilter(days: Int?, excludedPeriodKeys: Set<Long?>) {
+    fun updateStatsFilter(days: Int?, excludedPeriodKeys: Set<Long?>, tagIds: Set<String>) {
         statsFilterDays = days
         statsExcludedPeriodKeys = excludedPeriodKeys
-        storage.saveStatsFilter(days, excludedPeriodKeys)
+        statsFilterTagIds = tagIds
+        storage.saveStatsFilter(days, excludedPeriodKeys, tagIds)
         stats = recomputeStats()
     }
 
@@ -201,6 +203,9 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
                 for (m in sortedMilestones) { if (session.timestamp >= m.date) key = m.date else break }
                 key !in statsExcludedPeriodKeys
             }
+        }
+        if (statsFilterTagIds.isNotEmpty()) {
+            result = result.filter { session -> session.tagIds.any { it in statsFilterTagIds } }
         }
         return result
     }
@@ -341,6 +346,15 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     fun removeTag(tag: Tag) {
         tags = tags.filter { it.id != tag.id }
         storage.saveTags(tags)
+        val updatedSessions = sessions.map { session ->
+            if (tag.id in session.tagIds) session.copy(tagIds = session.tagIds - tag.id)
+            else session
+        }
+        if (updatedSessions != sessions) {
+            updatedSessions.forEach { storage.saveOrUpdateSession(it) }
+            sessions = storage.loadSessions()
+            stats = recomputeStats()
+        }
     }
 
     fun updateTag(updated: Tag) {

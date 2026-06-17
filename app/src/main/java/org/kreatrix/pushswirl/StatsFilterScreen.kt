@@ -1,6 +1,7 @@
 package org.kreatrix.pushswirl
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -20,7 +21,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun StatsFilterScreen(viewModel: SessionViewModel) {
     val milestones = viewModel.milestones
@@ -28,9 +29,10 @@ fun StatsFilterScreen(viewModel: SessionViewModel) {
 
     var daysText by remember { mutableStateOf(viewModel.statsFilterDays?.toString() ?: "") }
     var excluded by remember { mutableStateOf(viewModel.statsExcludedPeriodKeys) }
+    var filterTagIds by remember { mutableStateOf(viewModel.statsFilterTagIds) }
 
     fun applyAndBack() {
-        viewModel.updateStatsFilter(daysText.toIntOrNull(), excluded)
+        viewModel.updateStatsFilter(daysText.toIntOrNull(), excluded, filterTagIds)
         viewModel.navigateTo(AppScreen.Statistics)
     }
 
@@ -183,6 +185,45 @@ fun StatsFilterScreen(viewModel: SessionViewModel) {
                         Text(
                             text = periodLabel(key),
                             modifier = Modifier.padding(start = 4.dp)
+                        )
+                    }
+                }
+            }
+
+            if (viewModel.tags.isNotEmpty()) {
+                Divider()
+                Text("Tags", style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary)
+                Text(
+                    text = "When no tags are selected, all sessions are included.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    viewModel.tags.forEach { tag ->
+                        val isSelected = tag.id in filterTagIds
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = {
+                                filterTagIds = if (isSelected) filterTagIds - tag.id
+                                               else filterTagIds + tag.id
+                            },
+                            label = { Text(tag.name) },
+                            leadingIcon = {
+                                Box(
+                                    modifier = Modifier
+                                        .size(10.dp)
+                                        .background(tag.color.toComposeColor())
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
                         )
                     }
                 }
