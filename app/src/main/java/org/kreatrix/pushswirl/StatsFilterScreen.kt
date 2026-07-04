@@ -21,7 +21,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StatsFilterScreen(viewModel: SessionViewModel) {
     val milestones = viewModel.milestones
@@ -167,7 +167,7 @@ fun StatsFilterScreen(viewModel: SessionViewModel) {
             }
 
             if (periodKeys.isNotEmpty()) {
-                Divider()
+                HorizontalDivider()
                 Text("Periods", style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary)
 
@@ -191,7 +191,7 @@ fun StatsFilterScreen(viewModel: SessionViewModel) {
             }
 
             if (viewModel.tags.isNotEmpty()) {
-                Divider()
+                HorizontalDivider()
                 Text("Tags", style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary)
                 Text(

@@ -343,7 +343,7 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
                         Text("Filter")
                     }
                 }
-                Divider(modifier = Modifier.padding(vertical = 4.dp))
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
             }
 
             if (stats.totalSessions == 0) {

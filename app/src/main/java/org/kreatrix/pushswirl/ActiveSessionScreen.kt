@@ -399,7 +399,6 @@ fun DepthInputView(viewModel: SessionViewModel, phase: PhaseSize, isWideScreen: 
 }
 
 @Composable
-@OptIn(ExperimentalMaterial3Api::class)
 fun DilationView(viewModel: SessionViewModel, phase: PhaseSize, action: DilationAction, isWideScreen: Boolean = false) {
     var showEarlyFinishDialog by remember { mutableStateOf(false) }
     var showSoundDialog by remember { mutableStateOf(false) }
@@ -438,11 +437,13 @@ fun DilationView(viewModel: SessionViewModel, phase: PhaseSize, action: Dilation
                 DilationTimerDisplay(viewModel, isStatic, isWideScreen = true)
                 Spacer(modifier = Modifier.height(12.dp))
                 LinearProgressIndicator(
-                    progress = progress,
+                    progress = { progress },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(8.dp),
                     color = MaterialTheme.colorScheme.primary,
+                    gapSize = 0.dp,
+                    drawStopIndicator = {},
                 )
             }
             Column(
@@ -482,11 +483,13 @@ fun DilationView(viewModel: SessionViewModel, phase: PhaseSize, action: Dilation
             DilationTimerDisplay(viewModel, isStatic)
             Spacer(modifier = Modifier.height(24.dp))
             LinearProgressIndicator(
-                progress = progress,
+                progress = { progress },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(8.dp),
                 color = MaterialTheme.colorScheme.primary,
+                gapSize = 0.dp,
+                drawStopIndicator = {},
             )
             Spacer(modifier = Modifier.height(32.dp))
             DilationControls(
@@ -949,7 +952,6 @@ private fun VibrationSettingsDialog(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun TagNoteView(viewModel: SessionViewModel, isWideScreen: Boolean = false) {
     var tagIds by remember { mutableStateOf<List<String>>(emptyList()) }

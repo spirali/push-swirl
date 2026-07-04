@@ -22,7 +22,7 @@ private data class PhaseEditState(
     val depthCm: String
 )
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditSessionScreen(viewModel: SessionViewModel) {
     val session = (viewModel.currentScreen as AppScreen.EditSession).session
@@ -148,11 +148,11 @@ fun EditSessionScreen(viewModel: SessionViewModel) {
                     )
                 }
                 if (i < session.phases.lastIndex) {
-                    Divider()
+                    HorizontalDivider()
                 }
             }
 
-            Divider()
+            HorizontalDivider()
 
             Text(
                 text = "Total Length",
@@ -182,7 +182,7 @@ fun EditSessionScreen(viewModel: SessionViewModel) {
                 )
             }
 
-            Divider()
+            HorizontalDivider()
 
             if (viewModel.tags.isNotEmpty()) {
                 Text(
@@ -219,7 +219,7 @@ fun EditSessionScreen(viewModel: SessionViewModel) {
                         )
                     }
                 }
-                Divider()
+                HorizontalDivider()
             }
 
             Text(

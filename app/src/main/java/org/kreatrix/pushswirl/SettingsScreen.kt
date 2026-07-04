@@ -121,7 +121,7 @@ fun SettingsScreen(viewModel: SessionViewModel) {
                             }
 
                             Spacer(modifier = Modifier.height(32.dp))
-                            Divider()
+                            HorizontalDivider()
                             Spacer(modifier = Modifier.height(24.dp))
 
                             Text(
@@ -374,7 +374,7 @@ fun SettingsScreen(viewModel: SessionViewModel) {
                         }
 
                         Spacer(modifier = Modifier.height(24.dp))
-                        Divider()
+                        HorizontalDivider()
                         Spacer(modifier = Modifier.height(24.dp))
 
                         Text(
@@ -471,7 +471,7 @@ fun SettingsScreen(viewModel: SessionViewModel) {
                 }
             } else {
                 Column(modifier = Modifier.fillMaxSize()) {
-                    TabRow(selectedTabIndex = selectedTab) {
+                    PrimaryTabRow(selectedTabIndex = selectedTab) {
                         Tab(
                             selected = selectedTab == 0,
                             onClick = { selectedTab = 0 },
@@ -604,7 +604,6 @@ private fun TagsTabContent(viewModel: SessionViewModel) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TagDialog(
     initial: Tag?,

@@ -114,7 +114,7 @@ private fun SortControlsRow(
                 label = { Text("Sort by") },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
                 modifier = Modifier
-                    .menuAnchor()
+                    .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
                     .fillMaxWidth(),
                 singleLine = true
             )
@@ -137,7 +137,6 @@ private fun SortControlsRow(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SessionCard(
     session: Session,
@@ -185,7 +184,7 @@ fun SessionCard(
 
             if (expanded) {
                 Spacer(modifier = Modifier.height(12.dp))
-                Divider()
+                HorizontalDivider()
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Row(
@@ -279,7 +278,7 @@ fun SessionCard(
 
                 val appliedTags = allTags.filter { it.id in session.tagIds }
                 if (appliedTags.isNotEmpty()) {
-                    Divider()
+                    HorizontalDivider()
                     Spacer(modifier = Modifier.height(8.dp))
                     FlowRow(
                         modifier = Modifier.fillMaxWidth(),
@@ -303,7 +302,7 @@ fun SessionCard(
                     Spacer(modifier = Modifier.height(8.dp))
                 }
                 if (session.note.isNotBlank()) {
-                    Divider()
+                    HorizontalDivider()
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = session.note,

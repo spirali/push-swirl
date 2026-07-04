@@ -213,7 +213,7 @@ fun NewSessionScreen(viewModel: SessionViewModel) {
                     ) {
                         Text("Start Session", fontSize = 18.sp)
                     }
-                    TabRow(selectedTabIndex = selectedTab) {
+                    PrimaryTabRow(selectedTabIndex = selectedTab) {
                         Tab(
                             selected = selectedTab == 0,
                             onClick = { selectedTab = 0 },
@@ -318,7 +318,6 @@ fun NewSessionScreen(viewModel: SessionViewModel) {
 }
 
 @Composable
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 fun PhaseSelector(
     label: String,
     selected: PhaseDuration,
@@ -359,7 +358,6 @@ fun PhaseSelector(
 }
 
 @Composable
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 fun ActionTimeSelector(
     selected: Int,
     onSelect: (Int) -> Unit
