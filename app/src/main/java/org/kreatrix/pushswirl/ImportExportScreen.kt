@@ -76,12 +76,12 @@ fun ImportExportScreen(viewModel: SessionViewModel) {
             )
         }
     ) { padding ->
-        BoxWithConstraints(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            val isWideScreen = maxWidth > 600.dp
+            val isWideScreen = LocalIsWideScreen.current
             if (isWideScreen) {
                 Row(
                     modifier = Modifier

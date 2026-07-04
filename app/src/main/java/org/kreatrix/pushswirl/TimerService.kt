@@ -214,7 +214,7 @@ class TimerService : Service() {
         } else {
             VibrationEffect.createWaveform(pattern, -1)
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             val attrs = VibrationAttributes.Builder()
                 .setUsage(VibrationAttributes.USAGE_ALARM)
                 .build()

@@ -9,10 +9,15 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.window.core.layout.WindowSizeClass
+
+/** Whether the current window is at least medium width (>= 600dp) — the app's wide/landscape breakpoint. */
+val LocalIsWideScreen = staticCompositionLocalOf { false }
 
 class MainActivity : ComponentActivity() {
 
@@ -48,16 +53,20 @@ fun PushSwirlApp() {
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background
         ) {
-            when (viewModel.currentScreen) {
-                is AppScreen.Home -> HomeScreen(viewModel)
-                is AppScreen.NewSession -> NewSessionScreen(viewModel)
-                is AppScreen.ActiveSession -> ActiveSessionScreen(viewModel)
-                is AppScreen.SessionHistory -> SessionHistoryScreen(viewModel)
-                is AppScreen.EditSession -> EditSessionScreen(viewModel)
-                is AppScreen.Statistics -> StatisticsScreen(viewModel)
-                is AppScreen.StatsFilter -> StatsFilterScreen(viewModel)
-                is AppScreen.Settings -> SettingsScreen(viewModel)
-                is AppScreen.ImportExport -> ImportExportScreen(viewModel)
+            val isWide = currentWindowAdaptiveInfo().windowSizeClass
+                .isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_MEDIUM_LOWER_BOUND)
+            CompositionLocalProvider(LocalIsWideScreen provides isWide) {
+                when (viewModel.currentScreen) {
+                    is AppScreen.Home -> HomeScreen(viewModel)
+                    is AppScreen.NewSession -> NewSessionScreen(viewModel)
+                    is AppScreen.ActiveSession -> ActiveSessionScreen(viewModel)
+                    is AppScreen.SessionHistory -> SessionHistoryScreen(viewModel)
+                    is AppScreen.EditSession -> EditSessionScreen(viewModel)
+                    is AppScreen.Statistics -> StatisticsScreen(viewModel)
+                    is AppScreen.StatsFilter -> StatsFilterScreen(viewModel)
+                    is AppScreen.Settings -> SettingsScreen(viewModel)
+                    is AppScreen.ImportExport -> ImportExportScreen(viewModel)
+                }
             }
         }
     }

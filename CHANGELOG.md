@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## v1.14
+
+* Fixed a crash when vibrating on Android 11 and 12 devices
+* Improved wide-screen/landscape layout, including correct sizing in split-screen and multi-window
+* Updated to newer Android UI framework and libraries
+
 ## v1.13
 
 * Blinded TTD timer: optionally hide the minutes during TTD (configurable in New Session → Others)

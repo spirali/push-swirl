@@ -14,7 +14,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -278,7 +277,7 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
         milestones.map { (it.date - day0Date) / 86_400_000f }
     else emptyList()
 
-    val isWideScreen = LocalConfiguration.current.screenWidthDp > 600
+    val isWideScreen = LocalIsWideScreen.current
 
     val filterLabel = buildString {
         append(if (statsFilterDays != null) "Last ${statsFilterDays}d" else "All time")
