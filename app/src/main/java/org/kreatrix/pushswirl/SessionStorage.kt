@@ -80,6 +80,9 @@ class SessionStorage(private val context: Context) {
             .putString("notification_vibration_mode", settings.vibrationMode.name)
             .putFloat("notification_volume", settings.volumeLevel)
             .putFloat("notification_vibration_amplitude", settings.vibrationAmplitude)
+            .putString("sound_uri_push", settings.pushSoundUri)
+            .putString("sound_uri_swirl", settings.swirlSoundUri)
+            .putString("sound_uri_phase_end", settings.phaseEndSoundUri)
             .apply()
     }
 
@@ -94,7 +97,10 @@ class SessionStorage(private val context: Context) {
             soundMode = soundMode,
             vibrationMode = vibMode,
             volumeLevel = prefs.getFloat("notification_volume", 0.5f),
-            vibrationAmplitude = prefs.getFloat("notification_vibration_amplitude", 1.0f)
+            vibrationAmplitude = prefs.getFloat("notification_vibration_amplitude", 1.0f),
+            pushSoundUri = prefs.getString("sound_uri_push", null),
+            swirlSoundUri = prefs.getString("sound_uri_swirl", null),
+            phaseEndSoundUri = prefs.getString("sound_uri_phase_end", null)
         )
     }
 

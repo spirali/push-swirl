@@ -140,6 +140,8 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
             val binder = service as TimerService.TimerBinder
             timerService = binder.getService()
             serviceBound = true
+            // Push full settings (incl. custom sound URIs, which the start intent doesn't carry).
+            timerService?.updateNotificationSettings(notificationSettings)
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {

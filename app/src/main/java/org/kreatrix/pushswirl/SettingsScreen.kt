@@ -1,6 +1,11 @@
 package org.kreatrix.pushswirl
 
+import android.content.Intent
+import android.media.MediaPlayer
+import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -13,6 +18,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -423,6 +429,7 @@ fun SettingsScreen(viewModel: SessionViewModel) {
                             )
                         }
                     }
+                    4 -> SoundsTabContent(viewModel)
                 }
             }
 
@@ -458,6 +465,12 @@ fun SettingsScreen(viewModel: SessionViewModel) {
                             onClick = { selectedTab = 3 },
                             modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                         )
+                        NavigationDrawerItem(
+                            label = { Text("Sounds") },
+                            selected = selectedTab == 4,
+                            onClick = { selectedTab = 4 },
+                            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                        )
                     }
                     Box(
                         modifier = Modifier
@@ -471,7 +484,10 @@ fun SettingsScreen(viewModel: SessionViewModel) {
                 }
             } else {
                 Column(modifier = Modifier.fillMaxSize()) {
-                    PrimaryTabRow(selectedTabIndex = selectedTab) {
+                    PrimaryScrollableTabRow(
+                        selectedTabIndex = selectedTab,
+                        edgePadding = 0.dp
+                    ) {
                         Tab(
                             selected = selectedTab == 0,
                             onClick = { selectedTab = 0 },
@@ -492,10 +508,108 @@ fun SettingsScreen(viewModel: SessionViewModel) {
                             onClick = { selectedTab = 3 },
                             text = { Text("App") }
                         )
+                        Tab(
+                            selected = selectedTab == 4,
+                            onClick = { selectedTab = 4 },
+                            text = { Text("Sounds") }
+                        )
                     }
                     TabContent()
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun SoundsTabContent(viewModel: SessionViewModel) {
+    val context = LocalContext.current
+    val settings = viewModel.notificationSettings
+
+    var pendingSound by remember { mutableStateOf<AppSound?>(null) }
+    var player by remember { mutableStateOf<MediaPlayer?>(null) }
+    DisposableEffect(Unit) {
+        onDispose {
+            player?.release()
+            player = null
+        }
+    }
+
+    fun releasePermission(uriStr: String?) {
+        uriStr ?: return
+        runCatching {
+            context.contentResolver.releasePersistableUriPermission(
+                Uri.parse(uriStr), Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+        }
+    }
+
+    val picker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        val sound = pendingSound
+        pendingSound = null
+        if (uri != null && sound != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
+            // Release the previously-held grant for this slot, if any, before replacing it.
+            releasePermission(settings.customUriFor(sound))
+            viewModel.updateNotificationSettings(settings.withCustomUri(sound, uri.toString()))
+        }
+    }
+
+    fun play(sound: AppSound) {
+        player?.release()
+        player = playAppSoundPreview(context, sound, viewModel.notificationSettings)
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+            .verticalScroll(rememberScrollState())
+    ) {
+        Text(
+            text = "Sounds",
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(bottom = 12.dp)
+        )
+
+        AppSound.entries.forEachIndexed { index, sound ->
+            val isCustom = settings.customUriFor(sound) != null
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp)
+            ) {
+                Text(sound.label, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                Text(
+                    text = if (isCustom) "Custom sound" else "Default sound",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { play(sound) }) { Text("Play") }
+                    OutlinedButton(onClick = {
+                        pendingSound = sound
+                        picker.launch(arrayOf("audio/*"))
+                    }) { Text("Set own sound") }
+                    TextButton(
+                        onClick = {
+                            releasePermission(settings.customUriFor(sound))
+                            viewModel.updateNotificationSettings(settings.withCustomUri(sound, null))
+                        },
+                        enabled = isCustom
+                    ) { Text("Reset") }
+                }
+            }
+            if (index < AppSound.entries.lastIndex) HorizontalDivider()
         }
     }
 }

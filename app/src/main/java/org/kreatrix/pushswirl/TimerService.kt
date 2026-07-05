@@ -38,6 +38,9 @@ class TimerService : Service() {
     private var vibrationAmplitude = 1.0f
     private var switchBeepsEnabled = true
     private var phaseFanfareEnabled = true
+    private var pushSoundUri: String? = null
+    private var swirlSoundUri: String? = null
+    private var phaseEndSoundUri: String? = null
 
     inner class TimerBinder : Binder() {
         fun getService(): TimerService = this@TimerService
@@ -91,6 +94,15 @@ class TimerService : Service() {
         vibrationAmplitude = settings.vibrationAmplitude
         switchBeepsEnabled = settings.switchBeepsEnabled
         phaseFanfareEnabled = settings.phaseFanfareEnabled
+        pushSoundUri = settings.pushSoundUri
+        swirlSoundUri = settings.swirlSoundUri
+        phaseEndSoundUri = settings.phaseEndSoundUri
+    }
+
+    private fun customUriFor(sound: AppSound): String? = when (sound) {
+        AppSound.PUSH -> pushSoundUri
+        AppSound.SWIRL -> swirlSoundUri
+        AppSound.PHASE_END -> phaseEndSoundUri
     }
 
     private fun createNotificationChannel() {
@@ -175,19 +187,46 @@ class TimerService : Service() {
         }
     }
 
+    // Plays a configurable cue: the user's custom sound if set, otherwise the built-in default.
+    private fun playSound(sound: AppSound, onComplete: (() -> Unit)? = null) {
+        if (soundMode == SoundMode.OFF) {
+            onComplete?.invoke()
+            return
+        }
+        try {
+            val mp = createAppSoundPlayer(this, sound, customUriFor(sound))
+            if (mp == null) {
+                onComplete?.invoke()
+                return
+            }
+            mp.setOnCompletionListener {
+                it.release()
+                onComplete?.invoke()
+            }
+            mp.start()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            onComplete?.invoke()
+        }
+    }
+
     fun makeNotification(type: NotificationEvent) {
         val restore = applyCustomVolume()
         when (type) {
             NotificationEvent.PUSH_BEGIN -> {
-                if (switchBeepsEnabled) playSound(R.raw.beep_long, restore) else restore?.invoke()
+                if (switchBeepsEnabled) playSound(AppSound.PUSH, restore) else restore?.invoke()
                 if (vibrationMode != VibrationMode.OFF) vibrate(longArrayOf(0, 400))
             }
             NotificationEvent.SWIRL_BEGIN -> {
-                if (switchBeepsEnabled) playSound(R.raw.beep_short) { playSound(R.raw.beep_short, restore) } else restore?.invoke()
+                if (switchBeepsEnabled) {
+                    // Default swirl cue is a double short beep; a custom sound plays once.
+                    if (swirlSoundUri != null) playSound(AppSound.SWIRL, restore)
+                    else playSound(R.raw.beep_short) { playSound(R.raw.beep_short, restore) }
+                } else restore?.invoke()
                 if (vibrationMode != VibrationMode.OFF) vibrate(longArrayOf(0, 200, 200, 200))
             }
             NotificationEvent.PHASE_END -> {
-                if (phaseFanfareEnabled) playSound(R.raw.finish, restore) else restore?.invoke()
+                if (phaseFanfareEnabled) playSound(AppSound.PHASE_END, restore) else restore?.invoke()
                 if (vibrationMode != VibrationMode.OFF) vibrate(longArrayOf(0, 400, 200, 400, 200, 400))
             }
         }
