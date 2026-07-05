@@ -38,6 +38,7 @@ The export file is a **UTF-8 encoded JSON** file. It contains metadata about the
 | `dilationMinutes` | Integer | The planned duration for this phase in minutes. |
 | `earlyFinishSecondsRemaining` | Integer? | *Optional.* If the phase was ended early, the number of seconds remaining on the clock. |
 | `depthCm` | Float? | *Optional.* The recorded depth measurement in centimeters. |
+| `pauseSeconds` | Integer? | *Optional.* Length of the rest ("Break") inserted after each push/swirl switch during this phase, in seconds. Absent when breaks were disabled or for older records. |
 
 ### Tag Object (`TagExport`)
 | Key | Type | Description |
@@ -50,8 +51,9 @@ The export file is a **UTF-8 encoded JSON** file. It contains metadata about the
 
 ## Backward Compatibility
 
-All optional fields (`day0Date`, `tags`, `tagIds`, `note`) are absent from exports created by older versions of the app. The app handles missing fields gracefully on import:
+All optional fields (`day0Date`, `tags`, `tagIds`, `note`, `pauseSeconds`) are absent from exports created by older versions of the app. The app handles missing fields gracefully on import:
 - Missing `tags` / `tagIds` / `note`: sessions are imported with no tags and a blank note.
+- Missing `pauseSeconds`: phase is imported as having no break configured.
 - Exports from newer app versions imported by older versions: unknown fields are silently ignored by the JSON parser.
 
 On import, any tag from the `tags` array whose UUID does not already exist locally is added to the local tag list.
@@ -88,7 +90,8 @@ On import, any tag from the `tags` array whose UUID does not already exist local
           "size": "MEDIUM",
           "ttdSeconds": 600,
           "dilationMinutes": 15,
-          "depthCm": 14.5
+          "depthCm": 14.5,
+          "pauseSeconds": 5
         },
         {
           "size": "LARGE",

@@ -40,7 +40,9 @@ data class SessionConfig(
     val actionTime: Int = 15,
     val recordDepth: Boolean = false,
     val addTagsNoteAtEnd: Boolean = false,
-    val blindedTtdTimer: Boolean = false
+    val blindedTtdTimer: Boolean = false,
+    // Rest inserted after each push/swirl switch, in seconds. 0 = no pause.
+    val pauseSeconds: Int = 0
 ) : Parcelable {
     fun getDuration(size: PhaseSize): PhaseDuration {
         return when (size) {
@@ -68,7 +70,9 @@ data class PhaseData(
     val earlyFinishSecondsRemaining: Int? = null,
     // Nullable when depth recording is disabled or for backward compatibility
     // Depth in centimeters
-    val depthCm: Float? = null
+    val depthCm: Float? = null,
+    // Inter-action pause (seconds) used during this phase; null for older records / when disabled
+    val pauseSeconds: Int? = null
 ) : Parcelable {
     // Helper to check if phase was finished early
     val wasFinishedEarly: Boolean
@@ -123,7 +127,8 @@ data class NotificationSettings(
     // Custom sound URIs (content:// from the file picker); null = use the built-in default.
     val pushSoundUri: String? = null,
     val swirlSoundUri: String? = null,
-    val phaseEndSoundUri: String? = null
+    val phaseEndSoundUri: String? = null,
+    val pauseSoundUri: String? = null
 ) {
     val soundEnabled: Boolean get() = soundMode != SoundMode.OFF
     val vibrationEnabled: Boolean get() = vibrationMode != VibrationMode.OFF

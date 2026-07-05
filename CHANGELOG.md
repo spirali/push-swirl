@@ -2,9 +2,12 @@
 
 ## v1.14
 
-* Fixed a crash when vibrating on Android 11 and 12 devices
+* Custom sounds 
+* Breaks: optionally insert a short rest after each push/swirl switch (New Session → Others), with its own sound
 * Improved wide-screen/landscape layout, including correct sizing in split-screen and multi-window
 * Updated to newer Android UI framework and libraries
+* Fixed: "Last session" time is updated when the session actually ended
+* Fixed a crash when vibrating on Android 11 and 12 devices
 
 ## v1.13
 

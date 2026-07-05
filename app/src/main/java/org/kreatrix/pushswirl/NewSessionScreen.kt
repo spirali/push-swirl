@@ -24,6 +24,7 @@ fun NewSessionScreen(viewModel: SessionViewModel) {
     var large by remember { mutableStateOf(viewModel.sessionConfig.large) }
     var xl by remember { mutableStateOf(viewModel.sessionConfig.xl) }
     var actionTime by remember { mutableStateOf(viewModel.sessionConfig.actionTime) }
+    var pauseSeconds by remember { mutableStateOf(viewModel.sessionConfig.pauseSeconds) }
     var recordDepth by remember { mutableStateOf(viewModel.sessionConfig.recordDepth) }
     var addTagsNoteAtEnd by remember { mutableStateOf(viewModel.sessionConfig.addTagsNoteAtEnd) }
     var blindedTtdTimer by remember { mutableStateOf(viewModel.sessionConfig.blindedTtdTimer) }
@@ -76,7 +77,7 @@ fun NewSessionScreen(viewModel: SessionViewModel) {
                         Spacer(modifier = Modifier.weight(1f))
                         Button(
                             onClick = {
-                                viewModel.updateConfig(SessionConfig(small, medium, large, xl, actionTime, recordDepth, addTagsNoteAtEnd, blindedTtdTimer))
+                                viewModel.updateConfig(SessionConfig(small, medium, large, xl, actionTime, recordDepth, addTagsNoteAtEnd, blindedTtdTimer, pauseSeconds))
                                 viewModel.startSession()
                             },
                             modifier = Modifier
@@ -131,6 +132,8 @@ fun NewSessionScreen(viewModel: SessionViewModel) {
                             horizontalAlignment = Alignment.Start
                         ) {
                             ActionTimeSelector(actionTime) { actionTime = it }
+                            Spacer(modifier = Modifier.height(24.dp))
+                            PauseSelector(pauseSeconds) { pauseSeconds = it }
                             Spacer(modifier = Modifier.height(32.dp))
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -198,7 +201,7 @@ fun NewSessionScreen(viewModel: SessionViewModel) {
                 Column(modifier = Modifier.fillMaxSize()) {
                     Button(
                         onClick = {
-                            viewModel.updateConfig(SessionConfig(small, medium, large, xl, actionTime, recordDepth, addTagsNoteAtEnd, blindedTtdTimer))
+                            viewModel.updateConfig(SessionConfig(small, medium, large, xl, actionTime, recordDepth, addTagsNoteAtEnd, blindedTtdTimer, pauseSeconds))
                             viewModel.startSession()
                         },
                         modifier = Modifier
@@ -249,6 +252,8 @@ fun NewSessionScreen(viewModel: SessionViewModel) {
                             horizontalAlignment = Alignment.Start
                         ) {
                             ActionTimeSelector(actionTime) { actionTime = it }
+                            Spacer(modifier = Modifier.height(24.dp))
+                            PauseSelector(pauseSeconds) { pauseSeconds = it }
                             Spacer(modifier = Modifier.height(32.dp))
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -381,6 +386,41 @@ fun ActionTimeSelector(
                 FilterChip(
                     selected = isSelected,
                     onClick = { onSelect(duration) },
+                    label = { Text(chipLabel) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                    )
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun PauseSelector(
+    selected: Int,
+    onSelect: (Int) -> Unit
+) {
+    Column {
+        Text(
+            text = "Breaks",
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            listOf(0, 2, 5).forEach { seconds ->
+                val isSelected = selected == seconds
+                val chipLabel = if (seconds == 0) "None" else "${seconds}s"
+                FilterChip(
+                    selected = isSelected,
+                    onClick = { onSelect(seconds) },
                     label = { Text(chipLabel) },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = MaterialTheme.colorScheme.primary,

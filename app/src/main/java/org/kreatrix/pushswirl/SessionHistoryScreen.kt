@@ -258,6 +258,15 @@ fun SessionCard(
                                 )
                             }
                         }
+                        val pause = phase.pauseSeconds
+                        if (pause != null && pause > 0) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Break: ${pause}s",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+                            )
+                        }
                         if (phase.depthCm != null) {
                             Spacer(modifier = Modifier.height(4.dp))
                             val depthFormatted = if (phase.depthCm % 1 == 0f) {

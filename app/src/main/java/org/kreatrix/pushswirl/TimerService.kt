@@ -12,7 +12,8 @@ import kotlin.math.roundToInt
 enum class NotificationEvent {
     PUSH_BEGIN,
     SWIRL_BEGIN,
-    PHASE_END
+    PHASE_END,
+    PAUSE_BEGIN
 }
 
 class TimerService : Service() {
@@ -41,6 +42,7 @@ class TimerService : Service() {
     private var pushSoundUri: String? = null
     private var swirlSoundUri: String? = null
     private var phaseEndSoundUri: String? = null
+    private var pauseSoundUri: String? = null
 
     inner class TimerBinder : Binder() {
         fun getService(): TimerService = this@TimerService
@@ -97,12 +99,14 @@ class TimerService : Service() {
         pushSoundUri = settings.pushSoundUri
         swirlSoundUri = settings.swirlSoundUri
         phaseEndSoundUri = settings.phaseEndSoundUri
+        pauseSoundUri = settings.pauseSoundUri
     }
 
     private fun customUriFor(sound: AppSound): String? = when (sound) {
         AppSound.PUSH -> pushSoundUri
         AppSound.SWIRL -> swirlSoundUri
         AppSound.PHASE_END -> phaseEndSoundUri
+        AppSound.PAUSE -> pauseSoundUri
     }
 
     private fun createNotificationChannel() {
@@ -228,6 +232,10 @@ class TimerService : Service() {
             NotificationEvent.PHASE_END -> {
                 if (phaseFanfareEnabled) playSound(AppSound.PHASE_END, restore) else restore?.invoke()
                 if (vibrationMode != VibrationMode.OFF) vibrate(longArrayOf(0, 400, 200, 400, 200, 400))
+            }
+            NotificationEvent.PAUSE_BEGIN -> {
+                playSound(AppSound.PAUSE, restore)
+                if (vibrationMode != VibrationMode.OFF) vibrate(longArrayOf(0, 150))
             }
         }
     }

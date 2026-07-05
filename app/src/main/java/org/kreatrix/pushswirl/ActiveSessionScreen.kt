@@ -425,7 +425,7 @@ fun DilationView(viewModel: SessionViewModel, phase: PhaseSize, action: Dilation
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = action.name,
+                    text = if (viewModel.inActionPause) "Break" else action.name,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     color = if (action == DilationAction.PUSH)
@@ -471,7 +471,7 @@ fun DilationView(viewModel: SessionViewModel, phase: PhaseSize, action: Dilation
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = action.name,
+                text = if (viewModel.inActionPause) "Break" else action.name,
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Bold,
                 color = if (action == DilationAction.PUSH)
@@ -570,13 +570,13 @@ private fun DilationTimerDisplay(viewModel: SessionViewModel, isStatic: Boolean,
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    text = formatTime(viewModel.actionRemainingSeconds.toLong()),
+                    text = formatTime((if (viewModel.inActionPause) viewModel.actionPauseRemainingSeconds else viewModel.actionRemainingSeconds).toLong()),
                     fontSize = 52.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
                 )
                 Text(
-                    text = "Activity Timer",
+                    text = if (viewModel.inActionPause) "Break" else "Activity Timer",
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                 )
@@ -597,14 +597,14 @@ private fun DilationTimerDisplay(viewModel: SessionViewModel, isStatic: Boolean,
         }
     } else {
         Text(
-            text = formatTime(viewModel.actionRemainingSeconds.toLong()),
+            text = formatTime((if (viewModel.inActionPause) viewModel.actionPauseRemainingSeconds else viewModel.actionRemainingSeconds).toLong()),
             fontSize = 72.sp,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Activity Timer",
+            text = if (viewModel.inActionPause) "Break" else "Activity Timer",
             fontSize = 16.sp,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
         )

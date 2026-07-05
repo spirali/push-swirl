@@ -104,6 +104,14 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     var actionRemainingSeconds by mutableIntStateOf(sessionConfig.actionTime)
         private set
 
+    // Inter-action rest ("Pause"): active flag + remaining seconds, for the active-session UI.
+    var inActionPause by mutableStateOf(false)
+        private set
+    var actionPauseRemainingSeconds by mutableIntStateOf(0)
+        private set
+    private var actionPauseEndTime = 0L
+    private var pendingActionIndex = -1
+
     // Session tracking
     private val completedPhases = mutableStateListOf<PhaseData>()
     private var sessionStartTime = 0L
@@ -457,6 +465,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
             ttdSeconds = lastTtdSeconds,
             dilationMinutes = plannedMinutes,
             actionTime = sessionConfig.actionTime,
+            pauseSeconds = sessionConfig.pauseSeconds.takeIf { it > 0 },
             earlyFinishSecondsRemaining = plannedMinutes * 60
         ))
         startDilationForCurrentPhase()
@@ -474,6 +483,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         dilationStartTime = SystemClock.elapsedRealtime()
         dilationAccumulatedMs = 0L
         dilationPaused = false
+        inActionPause = false
         lastNotifiedActionIndex = -1
         earlyFinishSecondsRemaining = null  // Reset early finish tracking
 
@@ -492,32 +502,77 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
             }
 
             while (isActive && calculateDilationRemainingSeconds() > 0) {
-                if (!dilationPaused) {
-                    // Update displayed values from absolute time
-                    updateTimeDisplays()
+                if (dilationPaused) {
+                    delay(200)
+                    continue
+                }
 
-                    // Check if we need to send a notification for a new action
-                    val currentIdx = calculateCurrentActionIndex()
-                    if (currentIdx != lastNotifiedActionIndex) {
-                        lastNotifiedActionIndex = currentIdx
-
-                        // Update session state with current action
-                        val currentAction = if (currentIdx % 2 == 0) DilationAction.PUSH else DilationAction.SWIRL
+                if (inActionPause) {
+                    // Resting between actions: the dilation clock stays frozen.
+                    val now = SystemClock.elapsedRealtime()
+                    actionPauseRemainingSeconds =
+                        (((actionPauseEndTime - now) + 999) / 1000).toInt().coerceAtLeast(0)
+                    timerService?.updateTimerState(
+                        (sessionState as? SessionState.Dilation)?.phase, null,
+                        dilationRemainingSeconds, actionPauseRemainingSeconds
+                    )
+                    if (now >= actionPauseEndTime) {
+                        // Rest over: resume the clock and begin the deferred action.
+                        dilationStartTime = now
+                        inActionPause = false
+                        actionPauseRemainingSeconds = 0
+                        lastNotifiedActionIndex = pendingActionIndex
+                        val currentAction = if (pendingActionIndex % 2 == 0) DilationAction.PUSH else DilationAction.SWIRL
                         sessionState = SessionState.Dilation(activePhases[currentPhaseIndex], currentAction)
-
-                        // Send notification
                         if (currentAction == DilationAction.PUSH) {
                             timerService?.makeNotification(NotificationEvent.PUSH_BEGIN)
                         } else {
                             timerService?.makeNotification(NotificationEvent.SWIRL_BEGIN)
                         }
                     }
-
-                    // Update service notification
-                    val phase = (sessionState as? SessionState.Dilation)?.phase
-                    val action = (sessionState as? SessionState.Dilation)?.action
-                    timerService?.updateTimerState(phase, action, dilationRemainingSeconds, actionRemainingSeconds)
+                    delay(200)
+                    continue
                 }
+
+                // Update displayed values from absolute time
+                updateTimeDisplays()
+
+                // Check if we need to send a notification for a new action
+                val currentIdx = calculateCurrentActionIndex()
+                if (currentIdx != lastNotifiedActionIndex) {
+                    if (sessionConfig.pauseSeconds > 0 && currentIdx > 0) {
+                        // Insert a rest before the switched-to action; freeze the dilation clock.
+                        val now = SystemClock.elapsedRealtime()
+                        dilationAccumulatedMs += now - dilationStartTime
+                        dilationStartTime = now
+                        inActionPause = true
+                        pendingActionIndex = currentIdx
+                        actionPauseEndTime = now + sessionConfig.pauseSeconds * 1000L
+                        actionPauseRemainingSeconds = sessionConfig.pauseSeconds
+                        timerService?.makeNotification(NotificationEvent.PAUSE_BEGIN)
+                        saveSessionSnapshot()
+                        delay(200)
+                        continue
+                    }
+
+                    lastNotifiedActionIndex = currentIdx
+
+                    // Update session state with current action
+                    val currentAction = if (currentIdx % 2 == 0) DilationAction.PUSH else DilationAction.SWIRL
+                    sessionState = SessionState.Dilation(activePhases[currentPhaseIndex], currentAction)
+
+                    // Send notification
+                    if (currentAction == DilationAction.PUSH) {
+                        timerService?.makeNotification(NotificationEvent.PUSH_BEGIN)
+                    } else {
+                        timerService?.makeNotification(NotificationEvent.SWIRL_BEGIN)
+                    }
+                }
+
+                // Update service notification
+                val phase = (sessionState as? SessionState.Dilation)?.phase
+                val action = (sessionState as? SessionState.Dilation)?.action
+                timerService?.updateTimerState(phase, action, dilationRemainingSeconds, actionRemainingSeconds)
 
                 delay(200) // Check frequently for responsive UI
             }
@@ -604,6 +659,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
                 ttdSeconds = lastTtdSeconds,
                 dilationMinutes = duration.minutes,
                 actionTime = sessionConfig.actionTime,
+                pauseSeconds = sessionConfig.pauseSeconds.takeIf { it > 0 },
                 earlyFinishSecondsRemaining = earlyFinishSecondsRemaining
             ))
             sessionState = SessionState.DepthInput(phase)
@@ -622,6 +678,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
                 ttdSeconds = lastTtdSeconds,
                 dilationMinutes = duration.minutes,
                 actionTime = sessionConfig.actionTime,
+                pauseSeconds = sessionConfig.pauseSeconds.takeIf { it > 0 },
                 earlyFinishSecondsRemaining = earlyFinishSecondsRemaining,
                 depthCm = currentPhaseDepth
             )
@@ -659,6 +716,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
             config = sessionConfig,
             phases = completedPhases.toList(),
             totalSeconds = totalTime,
+            timestamp = effectiveEnd,
             tagIds = pendingTagIds,
             note = pendingNote
         )
@@ -753,6 +811,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
                     ttdSeconds = lastTtdSeconds,
                     dilationMinutes = sessionConfig.getDuration(phase).minutes,
                     actionTime = sessionConfig.actionTime,
+                    pauseSeconds = sessionConfig.pauseSeconds.takeIf { it > 0 },
                     earlyFinishSecondsRemaining = calculateDilationRemainingSeconds(),
                     depthCm = currentPhaseDepth
                 )
@@ -765,6 +824,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
                     ttdSeconds = lastTtdSeconds,
                     dilationMinutes = sessionConfig.getDuration(phase).minutes,
                     actionTime = sessionConfig.actionTime,
+                    pauseSeconds = sessionConfig.pauseSeconds.takeIf { it > 0 },
                     earlyFinishSecondsRemaining = earlyFinishSecondsRemaining,
                     depthCm = null
                 )
@@ -804,6 +864,8 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         dilationRemainingSeconds = 0
         actionRemainingSeconds = sessionConfig.actionTime
         dilationPaused = false
+        inActionPause = false
+        actionPauseRemainingSeconds = 0
         earlyFinishSecondsRemaining = null
         currentPhaseDepth = null
         pendingTagIds = emptyList()

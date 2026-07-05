@@ -6,6 +6,8 @@ import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -35,12 +37,21 @@ import java.util.TimeZone
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(viewModel: SessionViewModel) {
-    BackHandler { viewModel.navigateTo(AppScreen.Home) }
+    val isWideScreen = LocalIsWideScreen.current
+    val sectionTitles = listOf("Progress", "Countdown", "Tags", "App", "Sounds")
 
     val intervalMinutesTotal = viewModel.countdownIntervalMinutes
     var hoursText by remember(intervalMinutesTotal) { mutableStateOf((intervalMinutesTotal / 60).toString()) }
     var minutesText by remember(intervalMinutesTotal) { mutableStateOf((intervalMinutesTotal % 60).toString()) }
-    var selectedTab by remember { mutableStateOf(0) }
+    // null = show the section list (phone only); wide screens always render a section.
+    var selectedTab by remember { mutableStateOf<Int?>(null) }
+
+    // On phones a Back returns from an open section to the list before leaving Settings.
+    val sectionOpen = !isWideScreen && selectedTab != null
+    BackHandler {
+        if (sectionOpen) selectedTab = null
+        else viewModel.navigateTo(AppScreen.Home)
+    }
 
     fun commitInterval() {
         val h = hoursText.toIntOrNull()?.coerceIn(0, 99) ?: 0
@@ -52,13 +63,21 @@ fun SettingsScreen(viewModel: SessionViewModel) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Settings", fontWeight = FontWeight.Bold) },
+                title = {
+                    Text(
+                        if (sectionOpen) sectionTitles[selectedTab!!] else "Settings",
+                        fontWeight = FontWeight.Bold
+                    )
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     titleContentColor = MaterialTheme.colorScheme.onPrimary
                 ),
                 navigationIcon = {
-                    TextButton(onClick = { viewModel.navigateTo(AppScreen.Home) }) {
+                    TextButton(onClick = {
+                        if (sectionOpen) selectedTab = null
+                        else viewModel.navigateTo(AppScreen.Home)
+                    }) {
                         Text("Back", color = MaterialTheme.colorScheme.onPrimary)
                     }
                 }
@@ -70,11 +89,9 @@ fun SettingsScreen(viewModel: SessionViewModel) {
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            val isWideScreen = LocalIsWideScreen.current
-
             @Composable
-            fun TabContent() {
-                when (selectedTab) {
+            fun TabContent(section: Int) {
+                when (section) {
                     0 -> Column(
                         modifier = Modifier
                             .fillMaxSize()
@@ -441,36 +458,14 @@ fun SettingsScreen(viewModel: SessionViewModel) {
                             .fillMaxHeight()
                             .padding(vertical = 8.dp)
                     ) {
-                        NavigationDrawerItem(
-                            label = { Text("Progress") },
-                            selected = selectedTab == 0,
-                            onClick = { selectedTab = 0 },
-                            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-                        )
-                        NavigationDrawerItem(
-                            label = { Text("Countdown") },
-                            selected = selectedTab == 1,
-                            onClick = { selectedTab = 1 },
-                            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-                        )
-                        NavigationDrawerItem(
-                            label = { Text("Tags") },
-                            selected = selectedTab == 2,
-                            onClick = { selectedTab = 2 },
-                            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-                        )
-                        NavigationDrawerItem(
-                            label = { Text("App") },
-                            selected = selectedTab == 3,
-                            onClick = { selectedTab = 3 },
-                            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-                        )
-                        NavigationDrawerItem(
-                            label = { Text("Sounds") },
-                            selected = selectedTab == 4,
-                            onClick = { selectedTab = 4 },
-                            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
-                        )
+                        sectionTitles.forEachIndexed { i, title ->
+                            NavigationDrawerItem(
+                                label = { Text(title) },
+                                selected = (selectedTab ?: 0) == i,
+                                onClick = { selectedTab = i },
+                                modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                            )
+                        }
                     }
                     Box(
                         modifier = Modifier
@@ -479,42 +474,33 @@ fun SettingsScreen(viewModel: SessionViewModel) {
                             .background(MaterialTheme.colorScheme.outlineVariant)
                     )
                     Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                        TabContent()
+                        TabContent(selectedTab ?: 0)
                     }
                 }
             } else {
-                Column(modifier = Modifier.fillMaxSize()) {
-                    PrimaryScrollableTabRow(
-                        selectedTabIndex = selectedTab,
-                        edgePadding = 0.dp
+                val openSection = selectedTab
+                if (openSection == null) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
                     ) {
-                        Tab(
-                            selected = selectedTab == 0,
-                            onClick = { selectedTab = 0 },
-                            text = { Text("Progress") }
-                        )
-                        Tab(
-                            selected = selectedTab == 1,
-                            onClick = { selectedTab = 1 },
-                            text = { Text("Countdown") }
-                        )
-                        Tab(
-                            selected = selectedTab == 2,
-                            onClick = { selectedTab = 2 },
-                            text = { Text("Tags") }
-                        )
-                        Tab(
-                            selected = selectedTab == 3,
-                            onClick = { selectedTab = 3 },
-                            text = { Text("App") }
-                        )
-                        Tab(
-                            selected = selectedTab == 4,
-                            onClick = { selectedTab = 4 },
-                            text = { Text("Sounds") }
-                        )
+                        sectionTitles.forEachIndexed { i, title ->
+                            ListItem(
+                                headlineContent = { Text(title) },
+                                trailingContent = {
+                                    Icon(
+                                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                        contentDescription = null
+                                    )
+                                },
+                                modifier = Modifier.clickable { selectedTab = i }
+                            )
+                            HorizontalDivider()
+                        }
                     }
-                    TabContent()
+                } else {
+                    TabContent(openSection)
                 }
             }
         }

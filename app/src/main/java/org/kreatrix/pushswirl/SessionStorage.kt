@@ -83,6 +83,7 @@ class SessionStorage(private val context: Context) {
             .putString("sound_uri_push", settings.pushSoundUri)
             .putString("sound_uri_swirl", settings.swirlSoundUri)
             .putString("sound_uri_phase_end", settings.phaseEndSoundUri)
+            .putString("sound_uri_pause", settings.pauseSoundUri)
             .apply()
     }
 
@@ -100,7 +101,8 @@ class SessionStorage(private val context: Context) {
             vibrationAmplitude = prefs.getFloat("notification_vibration_amplitude", 1.0f),
             pushSoundUri = prefs.getString("sound_uri_push", null),
             swirlSoundUri = prefs.getString("sound_uri_swirl", null),
-            phaseEndSoundUri = prefs.getString("sound_uri_phase_end", null)
+            phaseEndSoundUri = prefs.getString("sound_uri_phase_end", null),
+            pauseSoundUri = prefs.getString("sound_uri_pause", null)
         )
     }
 
@@ -636,8 +638,9 @@ class SessionStorage(private val context: Context) {
         val hasDepth = phases.any { it.depthCm != null }
 
         val actionTime = phases.firstOrNull()?.actionTime ?: 15
+        val pauseSeconds = phases.firstOrNull()?.pauseSeconds ?: 0
 
-        return SessionConfig(small, medium, large, xl, actionTime, recordDepth = hasDepth)
+        return SessionConfig(small, medium, large, xl, actionTime, recordDepth = hasDepth, pauseSeconds = pauseSeconds)
     }
 }
 
