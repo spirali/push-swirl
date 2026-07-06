@@ -222,11 +222,7 @@ class TimerService : Service() {
                 if (vibrationMode != VibrationMode.OFF) vibrate(longArrayOf(0, 400))
             }
             NotificationEvent.SWIRL_BEGIN -> {
-                if (switchBeepsEnabled) {
-                    // Default swirl cue is a double short beep; a custom sound plays once.
-                    if (swirlSoundUri != null) playSound(AppSound.SWIRL, restore)
-                    else playSound(R.raw.beep_short) { playSound(R.raw.beep_short, restore) }
-                } else restore?.invoke()
+                if (switchBeepsEnabled) playSound(AppSound.SWIRL, restore) else restore?.invoke()
                 if (vibrationMode != VibrationMode.OFF) vibrate(longArrayOf(0, 200, 200, 200))
             }
             NotificationEvent.PHASE_END -> {
