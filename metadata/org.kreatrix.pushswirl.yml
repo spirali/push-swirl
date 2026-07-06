@@ -1,0 +1,33 @@
+Categories:
+  - Sports & Health
+License: MIT
+AuthorName: Ada Böhm
+AuthorEmail: ada@kreatrix.org
+
+SourceCode: https://github.com/spirali/push-swirl
+IssueTracker: https://github.com/spirali/push-swirl/issues
+Changelog: https://github.com/spirali/push-swirl/blob/main/CHANGELOG.md
+
+AutoName: Push & Swirl
+
+RepoType: git
+Repo: https://github.com/spirali/push-swirl.git
+
+Builds:
+  - versionName: "1.14"
+    versionCode: 14
+    commit: v1.14
+    subdir: app
+    sudo:
+      - apt-get update
+      - apt-get install -y openjdk-17-jdk-headless
+      - update-java-alternatives -a
+    gradle:
+      - yes
+
+AllowedAPKSigningKeys: 63de931b1347925a622bab04f9663b79036c29cee533fa575e4b9e3dc1ecc157
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+CurrentVersion: "1.14"
+CurrentVersionCode: 14

@@ -1,0 +1,2 @@
+* Fixed "swipe back" behavior
+* Optional countdown to the next session (shown in the main menu; configured in "Settings")

@@ -1,0 +1,1 @@
+A specialized timer for the push & swirl exercise, with history and stats.

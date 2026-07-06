@@ -1,0 +1,6 @@
+* Allow setting "Day 0" (date when it all started); Day 0 is part of the export.
+* When Day 0 is set, show "Day XX" on the main menu screen where XX is the number of days from day 0.
+* Draw vertical red line in charts for days that are a multiple of 30.
+* Improved clarity of charts with many points.
+* Added "Session length" chart.
+* Small workaround around potential problems with vibrations on Samsung phones.

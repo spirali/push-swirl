@@ -1,0 +1,2 @@
+* Fixed problem with time tracking when application is suspended.
+* Support of an early finish of a timed phase

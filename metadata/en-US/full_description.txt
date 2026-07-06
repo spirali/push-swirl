@@ -1,0 +1,3 @@
+Push & Swirl is a focused timer app for practicing the push & swirl exercise technique.
+
+The app works fully offline. It does not collect, transmit, or share any data - everything stays on your device.
