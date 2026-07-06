@@ -79,7 +79,8 @@ fun ActiveSessionScreen(viewModel: SessionViewModel) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
+                .padding(padding),
+            contentAlignment = Alignment.Center
         ) {
             val isWideScreen = LocalIsWideScreen.current
             Column(
