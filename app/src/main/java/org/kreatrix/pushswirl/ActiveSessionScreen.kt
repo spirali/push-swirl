@@ -4,6 +4,13 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.view.WindowManager
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -15,9 +22,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.getValue
@@ -25,7 +36,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.activity.compose.BackHandler
+import kotlin.math.PI
 import kotlin.math.roundToInt
+import kotlin.math.sin
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -136,7 +149,6 @@ fun ActiveSessionScreen(viewModel: SessionViewModel) {
 @Composable
 fun TTDView(viewModel: SessionViewModel, phase: PhaseSize, isWideScreen: Boolean = false) {
     val blinded = viewModel.sessionConfig.blindedTtdTimer
-    val ttdDisplay = if (blinded) formatTimeBlinded(viewModel.ttdSeconds) else formatTime(viewModel.ttdSeconds)
 
     if (isWideScreen) {
         Row(
@@ -161,12 +173,20 @@ fun TTDView(viewModel: SessionViewModel, phase: PhaseSize, isWideScreen: Boolean
                     color = MaterialTheme.colorScheme.onBackground
                 )
                 Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = ttdDisplay,
-                    fontSize = 48.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.secondary
-                )
+                if (blinded) {
+                    BlindedTtdIndicator(
+                        running = viewModel.ttdRunning,
+                        dotSize = 16.dp,
+                        blockHeight = 56.dp
+                    )
+                } else {
+                    Text(
+                        text = formatTime(viewModel.ttdSeconds),
+                        fontSize = 48.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                }
             }
             Column(
                 modifier = Modifier.weight(1f),
@@ -193,14 +213,76 @@ fun TTDView(viewModel: SessionViewModel, phase: PhaseSize, isWideScreen: Boolean
                 color = MaterialTheme.colorScheme.onBackground
             )
             Spacer(modifier = Modifier.height(32.dp))
-            Text(
-                text = ttdDisplay,
-                fontSize = 64.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.secondary
-            )
+            if (blinded) {
+                BlindedTtdIndicator(
+                    running = viewModel.ttdRunning,
+                    dotSize = 20.dp,
+                    blockHeight = 72.dp
+                )
+            } else {
+                Text(
+                    text = formatTime(viewModel.ttdSeconds),
+                    fontSize = 64.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.secondary
+                )
+            }
             Spacer(modifier = Modifier.height(48.dp))
             TTDButtons(viewModel)
+        }
+    }
+}
+
+/**
+ * Stand-in for the TTD readout when the timer is blinded: three dots pulsing in a rolling wave.
+ * The wave has a fixed period unrelated to the elapsed time, so it says "running" without leaking
+ * how long. While paused the dots are static and dimmed.
+ */
+@Composable
+private fun BlindedTtdIndicator(running: Boolean, dotSize: Dp, blockHeight: Dp) {
+    val color = MaterialTheme.colorScheme.secondary
+    val gap = dotSize
+    val wave = if (running) {
+        val transition = rememberInfiniteTransition(label = "blindedTtd")
+        transition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1900, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "wave"
+        ).value
+    } else {
+        null
+    }
+
+    Canvas(
+        modifier = Modifier
+            .height(blockHeight)
+            .width(dotSize * 3 + gap * 2)
+            .semantics {
+                contentDescription =
+                    if (running) "Timer running, time hidden" else "Timer paused, time hidden"
+            }
+    ) {
+        val maxRadius = dotSize.toPx() / 2f
+        val step = dotSize.toPx() + gap.toPx()
+        val cy = size.height / 2f
+        for (i in 0 until 3) {
+            // 0..1 pulse, each dot a third of a cycle behind the previous one
+            val pulse = if (wave == null) {
+                0.5f
+            } else {
+                0.5f + 0.5f * sin(2.0 * PI * (wave - i / 3f)).toFloat()
+            }
+            val alpha = if (wave == null) 0.3f else 0.1f + 0.9f * pulse
+            val radius = maxRadius * (if (wave == null) 0.8f else 0.2f + 0.8f * pulse)
+            drawCircle(
+                color = color.copy(alpha = alpha),
+                radius = radius,
+                center = Offset(maxRadius + i * step, cy)
+            )
         }
     }
 }
@@ -1035,9 +1117,4 @@ private fun formatTime(seconds: Long): String {
     val mins = seconds / 60
     val secs = seconds % 60
     return String.format("%d:%02d", mins, secs)
-}
-
-private fun formatTimeBlinded(seconds: Long): String {
-    val secs = seconds % 60
-    return String.format("??:%02d", secs)
 }

@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## v1.15
+
+* Blinded TTD timer now shows a pulsing animation instead of "??:XX"
+
 ## v1.14
 
 * Custom sounds 
