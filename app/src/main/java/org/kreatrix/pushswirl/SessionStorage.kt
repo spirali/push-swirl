@@ -424,11 +424,16 @@ class SessionStorage(private val context: Context) {
                     val config = inferConfigFromPhases(sessionExport.phases)
 
                     // Parse timestamp
+                    val isoFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.getDefault())
                     val timestamp = try {
-                        val isoFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.getDefault())
                         isoFormat.parse(sessionExport.timestamp)?.time ?: System.currentTimeMillis()
                     } catch (e: Exception) {
                         System.currentTimeMillis()
+                    }
+                    // Absent for exports created before startTimestamp existed;
+                    // withNullDefaults() will derive it on next load in that case.
+                    val startTimestamp = sessionExport.startTimestamp?.let {
+                        try { isoFormat.parse(it)?.time } catch (e: Exception) { null }
                     }
 
                     val session = Session(
@@ -438,7 +443,8 @@ class SessionStorage(private val context: Context) {
                         totalSeconds = sessionExport.totalSeconds,
                         timestamp = timestamp,
                         tagIds = sessionExport.tagIds ?: emptyList(),
-                        note = sessionExport.note ?: ""
+                        note = sessionExport.note ?: "",
+                        startTimestamp = startTimestamp
                     )
                     currentSessions.add(session)
                     importedCount++
@@ -584,7 +590,8 @@ class SessionStorage(private val context: Context) {
                     config = inferConfigFromPhases(phases),
                     phases = phases,
                     totalSeconds = totalSec,
-                    timestamp = timestamp
+                    timestamp = timestamp,
+                    startTimestamp = timestamp
                 )
                 currentSessions += session
                 existingIds += id
@@ -674,15 +681,18 @@ data class SessionExport(
     val totalSeconds: Long,
     val timestamp: String,
     val tagIds: List<String>? = null,
-    val note: String? = null
+    val note: String? = null,
+    val startTimestamp: String? = null
 )
 
 // Gson sets missing fields to null even on non-nullable Kotlin types.
 // This patches sessions deserialized from older JSON that predate tagIds/note.
+// startTimestamp is derived from timestamp/totalSeconds for records saved before it existed.
 @Suppress("SENSELESS_COMPARISON")
 private fun Session.withNullDefaults() = copy(
     tagIds = if (tagIds == null) emptyList() else tagIds,
-    note = if (note == null) "" else note
+    note = if (note == null) "" else note,
+    startTimestamp = startTimestamp ?: (timestamp - totalSeconds * 1000)
 )
 
 /**
@@ -696,7 +706,8 @@ fun Session.toExport(): SessionExport {
         totalSeconds = totalSeconds,
         timestamp = isoFormat.format(Date(timestamp)),
         tagIds = tagIds.ifEmpty { null },
-        note = note.ifBlank { null }
+        note = note.ifBlank { null },
+        startTimestamp = startTimestamp?.let { isoFormat.format(Date(it)) }
     )
 }
 

@@ -165,7 +165,7 @@ fun SessionCard(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = formatDate(session.timestamp),
+                        text = formatDate(session.startTimestamp ?: session.timestamp),
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
@@ -187,19 +187,12 @@ fun SessionCard(
                 HorizontalDivider()
                 Spacer(modifier = Modifier.height(4.dp))
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.End)
-                ) {
-                    TextButton(
-                        onClick = onEdit,
-                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
-                    ) { Text("Edit", fontSize = 15.sp) }
-                    TextButton(
-                        onClick = { showDeleteDialog = true },
-                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
-                    ) { Text("Delete", fontSize = 15.sp, color = MaterialTheme.colorScheme.error) }
-                }
+                Text(
+                    text = "Ended: ${formatDate(session.timestamp)}",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
 
                 session.phases.forEach { phase ->
                     Column(modifier = Modifier.fillMaxWidth()) {
@@ -320,6 +313,20 @@ fun SessionCard(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                 }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.End)
+                ) {
+                    TextButton(
+                        onClick = onEdit,
+                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
+                    ) { Text("Edit", fontSize = 15.sp) }
+                    TextButton(
+                        onClick = { showDeleteDialog = true },
+                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp)
+                    ) { Text("Delete", fontSize = 15.sp, color = MaterialTheme.colorScheme.error) }
+                }
             }
         }
     }
@@ -344,7 +351,7 @@ fun SessionCard(
     }
 }
 
-private fun formatDate(timestamp: Long): String {
+fun formatDate(timestamp: Long): String {
     val sdf = SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault())
     return sdf.format(Date(timestamp))
 }

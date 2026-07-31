@@ -622,7 +622,8 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
             config = sessionConfig,
             phases = phases,
             totalSeconds = (effectiveEnd - sessionStartTime) / 1000,
-            timestamp = sessionStartTime
+            timestamp = sessionStartTime,
+            startTimestamp = sessionStartTime
         ))
     }
 
@@ -718,7 +719,8 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
             totalSeconds = totalTime,
             timestamp = effectiveEnd,
             tagIds = pendingTagIds,
-            note = pendingNote
+            note = pendingNote,
+            startTimestamp = sessionStartTime
         )
         storage.saveOrUpdateSession(session)
         storage.clearActiveSessionSnapshot()

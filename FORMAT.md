@@ -24,11 +24,12 @@ The export file is a **UTF-8 encoded JSON** file. It contains metadata about the
 | Key | Type | Description |
 | :--- | :--- | :--- |
 | `id` | String | A unique UUID identifying the session. |
-| `timestamp` | String | ISO 8601 timestamp (`yyyy-MM-dd'T'HH:mm:ssXXX`) of when the session occurred. |
+| `timestamp` | String | ISO 8601 timestamp (`yyyy-MM-dd'T'HH:mm:ssXXX`) of when the session occurred (its end time, or the time it was last checkpointed if interrupted before completion). |
 | `totalSeconds` | Long | The cumulative duration of the entire session in seconds. |
 | `phases` | Array | A list of Phase objects completed during this session. |
 | `tagIds` | Array? | *Optional.* List of Tag UUIDs applied to this session. Absent when no tags are assigned. |
 | `note` | String? | *Optional.* Free-form note for this session. Absent when empty. |
+| `startTimestamp` | String? | *Optional.* ISO 8601 timestamp of when the session started. Absent in exports from app versions before this field existed. |
 
 ### Phase Object (`PhaseData`) 
 | Key | Type | Description |
@@ -51,9 +52,10 @@ The export file is a **UTF-8 encoded JSON** file. It contains metadata about the
 
 ## Backward Compatibility
 
-All optional fields (`day0Date`, `tags`, `tagIds`, `note`, `pauseSeconds`) are absent from exports created by older versions of the app. The app handles missing fields gracefully on import:
+All optional fields (`day0Date`, `tags`, `tagIds`, `note`, `pauseSeconds`, `startTimestamp`) are absent from exports created by older versions of the app. The app handles missing fields gracefully on import:
 - Missing `tags` / `tagIds` / `note`: sessions are imported with no tags and a blank note.
 - Missing `pauseSeconds`: phase is imported as having no break configured.
+- Missing `startTimestamp`: the app derives an approximate start time by subtracting `totalSeconds` from `timestamp`.
 - Exports from newer app versions imported by older versions: unknown fields are silently ignored by the JSON parser.
 
 On import, any tag from the `tags` array whose UUID does not already exist locally is added to the local tag list.

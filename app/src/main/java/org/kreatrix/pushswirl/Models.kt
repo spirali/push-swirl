@@ -95,7 +95,9 @@ data class Session(
     val totalSeconds: Long,
     val timestamp: Long = System.currentTimeMillis(),
     val tagIds: List<String> = emptyList(),
-    val note: String = ""
+    val note: String = "",
+    // Start time of the session; null for records saved before this field existed
+    val startTimestamp: Long? = null
 ) : Parcelable
 
 data class SessionStats(
