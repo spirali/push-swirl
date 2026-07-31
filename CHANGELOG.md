@@ -4,6 +4,8 @@
 
 * Blinded TTD timer now shows a pulsing animation instead of "??:XX"
 * Session history now shows each session's start date/time (instead of end date/time); expanding a session's details shows its end date/time
+* Edit screen now allows editing a session's start and end date/time
+* Fixed: "time since last dilation" counted from session start instead of end when a session was ended early via Save & Exit
 
 ## v1.14
 

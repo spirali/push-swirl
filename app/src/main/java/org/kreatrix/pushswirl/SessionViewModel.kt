@@ -622,7 +622,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
             config = sessionConfig,
             phases = phases,
             totalSeconds = (effectiveEnd - sessionStartTime) / 1000,
-            timestamp = sessionStartTime,
+            timestamp = effectiveEnd,
             startTimestamp = sessionStartTime
         ))
     }
