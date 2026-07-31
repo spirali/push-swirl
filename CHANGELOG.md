@@ -6,6 +6,7 @@
 * Session history now shows each session's start date/time (instead of end date/time); expanding a session's details shows its end date/time
 * Edit screen now allows editing a session's start and end date/time
 * Fixed: "time since last dilation" counted from session start instead of end when a session was ended early via Save & Exit
+* Fixed: timer notification showing a generic/fallback icon instead of the app icon on some devices
 
 ## v1.14
 

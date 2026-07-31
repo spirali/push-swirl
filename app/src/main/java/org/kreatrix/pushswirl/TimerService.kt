@@ -3,6 +3,8 @@ package org.kreatrix.pushswirl
 import android.app.*
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.media.AudioManager
 import android.media.MediaPlayer
 import android.os.*
@@ -43,6 +45,10 @@ class TimerService : Service() {
     private var swirlSoundUri: String? = null
     private var phaseEndSoundUri: String? = null
     private var pauseSoundUri: String? = null
+
+    private val largeIcon: Bitmap by lazy {
+        BitmapFactory.decodeResource(resources, R.mipmap.ic_launcher)
+    }
 
     inner class TimerBinder : Binder() {
         fun getService(): TimerService = this@TimerService
@@ -149,7 +155,8 @@ class TimerService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("PushSwirl")
             .setContentText(text)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setLargeIcon(largeIcon)
             .setOngoing(true)
             .setContentIntent(openPendingIntent)
             .addAction(
