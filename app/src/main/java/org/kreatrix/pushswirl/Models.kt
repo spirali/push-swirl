@@ -24,7 +24,11 @@ enum class PhaseDuration(val minutes: Int) {
     FIVE(5),
     TEN(10),
     FIFTEEN(15),
-    THIRTY(30)
+    TWENTY_FIVE(25),
+    THIRTY(30),
+    FORTY(40),
+    FIFTY(50),
+    SIXTY(60)
 }
 
 enum class DilationAction {
