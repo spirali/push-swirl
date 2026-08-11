@@ -7,6 +7,9 @@ import android.os.Build
 import androidx.core.content.FileProvider
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
+import com.google.gson.JsonArray
+import com.google.gson.JsonElement
+import com.google.gson.JsonObject
 import com.google.gson.JsonSyntaxException
 import com.google.gson.reflect.TypeToken
 import java.io.File
@@ -43,9 +46,64 @@ class SessionStorage(private val context: Context) {
 
     fun loadSessions(): List<Session> {
         val json = prefs.getString("sessions", null) ?: return emptyList()
+        val sessions = migrateSessionsJson(json)
         val type = object : TypeToken<List<Session>>() {}.type
-        val raw: List<Session> = gson.fromJson(json, type) ?: return emptyList()
+        val raw: List<Session> = gson.fromJson(sessions, type) ?: return emptyList()
         return raw.map { it.withNullDefaults() }
+    }
+
+    /**
+     * Ensure backward compatibility : migrate session JSON from 
+     * previous version that used custom sizes (small, medium, large, XL)
+     *  - phases[].size -> sizeId / sizeName
+     *  - config.small/medium/large/xl -> config.phaseDurations
+     */
+    private fun migrateSessionsJson(json: String): JsonElement {
+        val root = try {
+            com.google.gson.JsonParser.parseString(json)
+        } catch (e: Exception) {
+            return com.google.gson.JsonParser.parseString(json)
+        }
+        if (root !is JsonArray) return root
+
+        for (element in root) {
+            if (element !is JsonObject) continue
+            migrateSessionConfigJson(element.getAsJsonObject("config"))
+            val phases = element.getAsJsonArray("phases")
+            phases?.forEach { phaseElement ->
+                if (phaseElement is JsonObject) migratePhaseJson(phaseElement)
+            }
+        }
+        return root
+    }
+
+    private fun migrateSessionConfigJson(config: JsonObject?) {
+        config ?: return
+        if (config.has("phaseDurations")) return
+        val map = JsonObject()
+        fun copyIfPresent(oldField: String, sizeId: String) {
+            val value = config.get(oldField)?.asString ?: return
+            map.addProperty(sizeId, value)
+        }
+        copyIfPresent("small", BuiltInSizeIds.SMALL)
+        copyIfPresent("medium", BuiltInSizeIds.MEDIUM)
+        copyIfPresent("large", BuiltInSizeIds.LARGE)
+        copyIfPresent("xl", BuiltInSizeIds.XL)
+        config.add("phaseDurations", map)
+    }
+
+    private fun migratePhaseJson(phase: JsonObject) {
+        if (phase.has("sizeId")) return
+        val oldSize = phase.get("size")?.asString ?: return
+        val (sizeId, sizeName) = when (oldSize) {
+            "SMALL" -> BuiltInSizeIds.SMALL to "Small"
+            "MEDIUM" -> BuiltInSizeIds.MEDIUM to "Medium"
+            "LARGE" -> BuiltInSizeIds.LARGE to "Large"
+            "XL" -> BuiltInSizeIds.XL to "XL"
+            else -> return
+        }
+        phase.addProperty("sizeId", sizeId)
+        phase.addProperty("sizeName", sizeName)
     }
 
     fun addSession(session: Session) {
@@ -401,9 +459,11 @@ class SessionStorage(private val context: Context) {
             val json = inputStream?.bufferedReader()?.use { it.readText() }
                 ?: return ImportResult.Error("Could not read file")
 
+            val patchedJson = migrateExportJson(json)
+
             // Try to parse as ExportData first
             val exportData = try {
-                gson.fromJson(json, ExportData::class.java)
+                gson.fromJson(patchedJson, ExportData::class.java)
             } catch (e: JsonSyntaxException) {
                 return ImportResult.Error("Invalid file format")
             }
@@ -500,6 +560,28 @@ class SessionStorage(private val context: Context) {
         } catch (e: Exception) {
             ImportResult.Error("Import failed: ${e.message}")
         }
+    }
+
+    /**
+     * Ensure backward compatibility with previously exported JSON
+     * before custom sizes existed. 
+     */
+    private fun migrateExportJson(json: String): String {
+        val root = try {
+            com.google.gson.JsonParser.parseString(json)
+        } catch (e: Exception) {
+            return json
+        }
+        if (root !is JsonObject) return json
+        val sessions = root.getAsJsonArray("sessions") ?: return json
+        sessions.forEach { sessionElement ->
+            if (sessionElement !is JsonObject) return@forEach
+            val phases = sessionElement.getAsJsonArray("phases") ?: return@forEach
+            phases.forEach { phaseElement ->
+                if (phaseElement is JsonObject) migratePhaseJson(phaseElement)
+            }
+        }
+        return root.toString()
     }
 
     /**
