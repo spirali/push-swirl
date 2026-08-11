@@ -18,11 +18,25 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-private val COLOR_SMALL  = Color(0xFF66BB6A)
-private val COLOR_MEDIUM = Color(0xFF42A5F5)
-private val COLOR_LARGE  = Color(0xFFFFA726)
-private val COLOR_XL     = Color(0xFFAB47BC)
-private val COLOR_GAP    = Color(0xFF26C6DA)
+// Palette for sizes. Colors will be picked depending on
+// the dilator size position in viewModel.phaseSizes.
+private val SIZE_COLOR_PALETTE = listOf(
+    Color(0xFF318DDA),
+    Color(0xFFA13AD3),
+    Color(0xFFEC45BA),
+    Color(0xFFFD1D7F),
+    Color(0xFFFA1F1C),
+    Color(0xFFFF6613),
+    Color(0xFFE8CA09),
+    Color(0xFF66E11B),
+    Color(0xFF8D6E63)
+)
+private val COLOR_GAP = Color(0xFF26C6DA)
+
+private fun colorForSize(sizes: List<PhaseSize>, sizeId: String): Color {
+    val idx = sizes.indexOfFirst { it.id == sizeId }.coerceAtLeast(0)
+    return SIZE_COLOR_PALETTE[idx % SIZE_COLOR_PALETTE.size]
+}
 
 private const val CHART_DENSE_THRESHOLD = 30
 
@@ -52,6 +66,7 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
     val statsExcludedPeriodKeys = viewModel.statsExcludedPeriodKeys
     val statsFilterTagIds = viewModel.statsFilterTagIds
     val sessions = viewModel.sessions
+    val phaseSizes = viewModel.phaseSizes
 
     val day0Date = viewModel.day0Date
     val milestones = viewModel.milestones
@@ -65,7 +80,7 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
     }
 
     // Compute filtered + sorted sessions for charts
-    val chartData = remember(sessions, statsFilterDays, statsExcludedPeriodKeys, statsFilterTagIds, day0Date, onSurface, ttdVisibleSizes, milestones) {
+    val chartData = remember(sessions, statsFilterDays, statsExcludedPeriodKeys, statsFilterTagIds, day0Date, onSurface, ttdVisibleSizes, milestones, phaseSizes) {
         val cutoff = statsFilterDays?.let { System.currentTimeMillis() - it * 24L * 60 * 60 * 1000 }
         val sortedMilestones = milestones.sortedBy { it.date }
         val filtered = run {
@@ -120,19 +135,17 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
             }
         }
 
-        val ttdInputs = listOf(
-            Triple(PhaseSize.SMALL,  "Small",  COLOR_SMALL),
-            Triple(PhaseSize.MEDIUM, "Medium", COLOR_MEDIUM),
-            Triple(PhaseSize.LARGE,  "Large",  COLOR_LARGE),
-            Triple(PhaseSize.XL,     "XL",     COLOR_XL),
-        ).filter { (size, _, _) -> size in ttdVisibleSizes }.map { (size, label, color) ->
-            val points = sorted.mapIndexedNotNull { idx, session ->
-                session.phases.find { it.size == size }?.let { phase ->
-                    ChartPoint(sessionX(session, idx), phase.ttdSeconds.toFloat())
+        val ttdInputs = phaseSizes
+            .map { size -> Triple(size.id, size.name, colorForSize(phaseSizes, size.id)) }
+            .filter { (sizeId, _, _) -> sizeId in ttdVisibleSizes }
+            .map { (sizeId, label, color) ->
+                val points = sorted.mapIndexedNotNull { idx, session ->
+                    session.phases.find { it.sizeId == sizeId }?.let { phase ->
+                        ChartPoint(sessionX(session, idx), phase.ttdSeconds.toFloat())
+                    }
                 }
+                Triple(color, label, points)
             }
-            Triple(color, label, points)
-        }
         val ttdMaOnly = ttdInputs.any { (_, _, points) -> points.size > CHART_DENSE_THRESHOLD }
         val ttdSeries = ttdInputs.flatMap { (color, label, points) ->
             val tintedReg = Color(
@@ -156,14 +169,14 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
         val lengthPoints = sorted.mapIndexed { idx, session ->
             ChartPoint(sessionX(session, idx), session.totalSeconds.toFloat() / 60f)
         }
-        val lengthSeries = buildSeries(COLOR_MEDIUM, "Length", lengthPoints, lengthPoints.size > CHART_DENSE_THRESHOLD)
+        val lengthSeries = buildSeries(SIZE_COLOR_PALETTE[1], "Length", lengthPoints, lengthPoints.size > CHART_DENSE_THRESHOLD)
 
         Triple(ttdSeries, gapSeries, lengthSeries)
     }
     val (ttdSeries, gapSeries, lengthSeries) = chartData
 
     // Stacked TTD layers + sum regression lines
-    val ttdStackedData = remember(sessions, statsFilterDays, statsExcludedPeriodKeys, statsFilterTagIds, day0Date, ttdVisibleSizes, milestones) {
+    val ttdStackedData = remember(sessions, statsFilterDays, statsExcludedPeriodKeys, statsFilterTagIds, day0Date, ttdVisibleSizes, milestones, phaseSizes) {
         val cutoff = statsFilterDays?.let { System.currentTimeMillis() - it * 24L * 60 * 60 * 1000 }
         val sortedMilestones = milestones.sortedBy { it.date }
         val filtered = run {
@@ -176,27 +189,24 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
         }
         val sorted = filtered.sortedBy { it.timestamp }
 
-        val layers = listOf(
-            Triple(PhaseSize.SMALL,  "Small",  COLOR_SMALL),
-            Triple(PhaseSize.MEDIUM, "Medium", COLOR_MEDIUM),
-            Triple(PhaseSize.LARGE,  "Large",  COLOR_LARGE),
-            Triple(PhaseSize.XL,     "XL",     COLOR_XL),
-        ).filter { (size, _, _) -> size in ttdVisibleSizes }
-         .map { (size, label, color) ->
-            val points = sorted.mapIndexed { idx, session ->
-                val x = if (day0Date != null) (session.timestamp - day0Date) / 86_400_000f else idx.toFloat()
-                val ttd = session.phases.find { it.size == size }?.ttdSeconds?.toFloat() ?: 0f
-                ChartPoint(x, ttd)
+        val layers = phaseSizes
+            .map { size -> Triple(size.id, size.name, colorForSize(phaseSizes, size.id)) }
+            .filter { (sizeId, _, _) -> sizeId in ttdVisibleSizes }
+            .map { (sizeId, label, color) ->
+                val points = sorted.mapIndexed { idx, session ->
+                    val x = if (day0Date != null) (session.timestamp - day0Date) / 86_400_000f else idx.toFloat()
+                    val ttd = session.phases.find { it.sizeId == sizeId }?.ttdSeconds?.toFloat() ?: 0f
+                    ChartPoint(x, ttd)
+                }
+                StackedLayer(color, label, points)
             }
-            StackedLayer(color, label, points)
-        }
 
         layers
     }
     val ttdStackedLayers = ttdStackedData
 
     // Per-phase scatter: X = gap to previous session (hours), Y = TTD (seconds)
-    val ttdGapScatter: List<ScatterData> = remember(sessions, statsFilterDays, statsExcludedPeriodKeys, statsFilterTagIds, day0Date, milestones) {
+    val ttdGapScatter: List<ScatterData> = remember(sessions, statsFilterDays, statsExcludedPeriodKeys, statsFilterTagIds, day0Date, milestones, phaseSizes) {
         val cutoff2 = statsFilterDays?.let { System.currentTimeMillis() - it * 24L * 60 * 60 * 1000 }
         val sortedMilestones2 = milestones.sortedBy { it.date }
         val filtered = run {
@@ -221,55 +231,52 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
             return scatterBoundaries.count { dayX >= it }
         }
 
-        listOf(
-            Triple(PhaseSize.SMALL,  "Small",  COLOR_SMALL),
-            Triple(PhaseSize.MEDIUM, "Medium", COLOR_MEDIUM),
-            Triple(PhaseSize.LARGE,  "Large",  COLOR_LARGE),
-            Triple(PhaseSize.XL,     "XL",     COLOR_XL),
-        ).mapNotNull { (size, label, color) ->
-            if (sorted.size < 2) return@mapNotNull null
-            val raw = sorted.indices.drop(1).mapNotNull { idx ->
-                val phase = sorted[idx].phases.find { it.size == size } ?: return@mapNotNull null
-                val gapHours = (sorted[idx].timestamp - sorted[idx - 1].timestamp).toFloat() / 3_600_000f
-                Triple(gapHours, phase.ttdSeconds.toFloat(), sessionSplitIdx(sorted[idx].timestamp))
-            }
-            if (raw.isEmpty()) return@mapNotNull null
-            val n = raw.size
-
-            val points = if (isMultiSplit) {
-                raw.map { (x, y, splitIdx) ->
-                    ScatterPoint(x, y,
-                        color = SPLIT_PALETTE[splitIdx % SPLIT_PALETTE.size].copy(alpha = 0.4f),
-                        shape = SPLIT_SHAPES[splitIdx % SPLIT_SHAPES.size]
-                    )
+        phaseSizes
+            .map { size -> Triple(size.id, size.name, colorForSize(phaseSizes, size.id)) }
+            .mapNotNull { (sizeId, label, color) ->
+                if (sorted.size < 2) return@mapNotNull null
+                val raw = sorted.indices.drop(1).mapNotNull { idx ->
+                    val phase = sorted[idx].phases.find { it.sizeId == sizeId } ?: return@mapNotNull null
+                    val gapHours = (sorted[idx].timestamp - sorted[idx - 1].timestamp).toFloat() / 3_600_000f
+                    Triple(gapHours, phase.ttdSeconds.toFloat(), sessionSplitIdx(sorted[idx].timestamp))
                 }
-            } else {
-                raw.mapIndexed { i, (x, y, _) ->
-                    val age = if (n == 1) 1f else i.toFloat() / (n - 1).toFloat()
-                    ScatterPoint(x, y, color.copy(alpha = 0.15f + age * 0.55f))
-                }
-            }
+                if (raw.isEmpty()) return@mapNotNull null
+                val n = raw.size
 
-            val regressionLines = (0 until numSplits).mapNotNull { splitIdx ->
-                val splitPts = raw.filter { (_, _, s) -> s == splitIdx }.map { (x, y, _) -> ChartPoint(x, y) }
-                val reg = linearRegression(splitPts) ?: return@mapNotNull null
-                val regColor = if (isMultiSplit) SPLIT_PALETTE[splitIdx % SPLIT_PALETTE.size] else color
-                Pair(regColor, reg)
-            }
-
-            val splitLegend: List<Triple<Color, ScatterShape, String>>? = if (isMultiSplit)
-                (0 until numSplits).map { i ->
-                    val rangeLabel = when {
-                        i == 0 -> "D0-D${scatterBoundaries[0].toInt()}"
-                        i == numSplits - 1 -> "D${scatterBoundaries[i - 1].toInt()}+"
-                        else -> "D${scatterBoundaries[i - 1].toInt()}-D${scatterBoundaries[i].toInt()}"
+                val points = if (isMultiSplit) {
+                    raw.map { (x, y, splitIdx) ->
+                        ScatterPoint(x, y,
+                            color = SPLIT_PALETTE[splitIdx % SPLIT_PALETTE.size].copy(alpha = 0.4f),
+                            shape = SPLIT_SHAPES[splitIdx % SPLIT_SHAPES.size]
+                        )
                     }
-                    Triple(SPLIT_PALETTE[i % SPLIT_PALETTE.size], SPLIT_SHAPES[i % SPLIT_SHAPES.size], rangeLabel)
+                } else {
+                    raw.mapIndexed { i, (x, y, _) ->
+                        val age = if (n == 1) 1f else i.toFloat() / (n - 1).toFloat()
+                        ScatterPoint(x, y, color.copy(alpha = 0.15f + age * 0.55f))
+                    }
                 }
-            else null
 
-            ScatterData(label, color, points, regressionLines, splitLegend)
-        }
+                val regressionLines = (0 until numSplits).mapNotNull { splitIdx ->
+                    val splitPts = raw.filter { (_, _, s) -> s == splitIdx }.map { (x, y, _) -> ChartPoint(x, y) }
+                    val reg = linearRegression(splitPts) ?: return@mapNotNull null
+                    val regColor = if (isMultiSplit) SPLIT_PALETTE[splitIdx % SPLIT_PALETTE.size] else color
+                    Pair(regColor, reg)
+                }
+
+                val splitLegend: List<Triple<Color, ScatterShape, String>>? = if (isMultiSplit)
+                    (0 until numSplits).map { i ->
+                        val rangeLabel = when {
+                            i == 0 -> "D0-D${scatterBoundaries[0].toInt()}"
+                            i == numSplits - 1 -> "D${scatterBoundaries[i - 1].toInt()}+"
+                            else -> "D${scatterBoundaries[i - 1].toInt()}-D${scatterBoundaries[i].toInt()}"
+                        }
+                        Triple(SPLIT_PALETTE[i % SPLIT_PALETTE.size], SPLIT_SHAPES[i % SPLIT_SHAPES.size], rangeLabel)
+                    }
+                else null
+
+                ScatterData(label, color, points, regressionLines, splitLegend)
+            }
     }
 
     val xAxisFormatter: ((Float) -> String)? = if (day0Date != null) { x -> "D${x.toInt()}" } else null
@@ -434,28 +441,25 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
                         modifier = Modifier.padding(horizontal = 8.dp)
                     )
 
-                    if (stats.smallTTD  > 0) StatCard(title = "Small",  value = formatDuration(stats.smallTTD.toLong()))
-                    if (stats.mediumTTD > 0) StatCard(title = "Medium", value = formatDuration(stats.mediumTTD.toLong()))
-                    if (stats.largeTTD  > 0) StatCard(title = "Large",  value = formatDuration(stats.largeTTD.toLong()))
-                    if (stats.xlTTD     > 0) StatCard(title = "XL",     value = formatDuration(stats.xlTTD.toLong()))
+                    phaseSizes.forEach { size ->
+                        val ttd = stats.ttdBySizeId[size.id] ?: 0.0
+                        if (ttd > 0) StatCard(title = size.name, value = formatDuration(ttd.toLong()))
+                    }
 
                     // TTD chart (line with MA + regression per phase)
                     ChartCard(title = "TTD") {
-                        val ttdSizeEntries = listOf(
-                            Triple(PhaseSize.SMALL,  "Small",  COLOR_SMALL),
-                            Triple(PhaseSize.MEDIUM, "Medium", COLOR_MEDIUM),
-                            Triple(PhaseSize.LARGE,  "Large",  COLOR_LARGE),
-                            Triple(PhaseSize.XL,     "XL",     COLOR_XL),
-                        )
+                        val ttdSizeEntries = phaseSizes.map { size ->
+                            Triple(size.id, size.name, colorForSize(phaseSizes, size.id))
+                        }
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            ttdSizeEntries.forEach { (size, label, color) ->
-                                val selected = size in ttdVisibleSizes
+                            ttdSizeEntries.forEach { (sizeId, label, color) ->
+                                val selected = sizeId in ttdVisibleSizes
                                 FilterChip(
                                     selected = selected,
-                                    onClick = { viewModel.toggleTtdSize(size) },
+                                    onClick = { viewModel.toggleTtdSize(sizeId) },
                                     label = { Text(label) },
                                     colors = FilterChipDefaults.filterChipColors(
                                         selectedContainerColor = color.copy(alpha = 0.25f),
