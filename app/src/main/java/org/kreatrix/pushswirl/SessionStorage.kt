@@ -578,6 +578,30 @@ class SessionStorage(private val context: Context) {
                 if (changed) saveTags(localTags)
             }
 
+            // Merge imported sizes.
+            // Add any size whose id is not already in local storage.
+            exportData.sizes?.let { exportedSizes ->
+                val localSizes = loadSizes().toMutableList()
+                val localSizeIds = localSizes.map { it.id }.toHashSet()
+                var changed = false
+                for (sizeExport in exportedSizes) {
+                    if (sizeExport.id !in localSizeIds) {
+                        val durations = sizeExport.durations.mapNotNull {
+                            try { PhaseDuration.valueOf(it) } catch (_: IllegalArgumentException) { null }
+                        }
+                        localSizes += PhaseSize(
+                            id = sizeExport.id,
+                            name = sizeExport.name,
+                            durations = durations.ifEmpty {
+                                PhaseDuration.entries.filter { it != PhaseDuration.SKIP }
+                            }
+                        )
+                        changed = true
+                    }
+                }
+                if (changed) saveSizes(localSizes)
+            }
+
             ImportResult.Success(importedCount, skippedCount)
         } catch (e: Exception) {
             ImportResult.Error("Import failed: ${e.message}")
