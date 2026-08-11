@@ -324,12 +324,12 @@ class SessionStorage(private val context: Context) {
         return StatsFilter(days, keys, tagIds)
     }
 
-    fun getLastDepthForSize(size: PhaseSize): Float {
+    fun getLastDepthForSize(sizeId: String): Float {
         // Get the last recorded depth from sessions that have depth recorded
         val sessions = loadSessions()
         val lastPhaseWithDepth = sessions
             .flatMap { it.phases }
-            .filter { it.size == size && it.depthCm != null }
+            .filter { it.sizeId == sizeId && it.depthCm != null }
             .firstOrNull()
 
         return lastPhaseWithDepth?.depthCm ?: 14f
@@ -345,21 +345,13 @@ class SessionStorage(private val context: Context) {
     }
 
     fun calculateStatsFromSessions(sessions: List<Session>): SessionStats {
-        if (sessions.isEmpty()) return SessionStats(0.0, 0.0, 0.0, 0.0, 0.0, 0, 0.0)
+        if (sessions.isEmpty()) return SessionStats(emptyMap(), 0.0, 0, 0.0)
 
-        val smallTTDs = mutableListOf<Double>()
-        val mediumTTDs = mutableListOf<Double>()
-        val largeTTDs = mutableListOf<Double>()
-        val xlTTDs = mutableListOf<Double>()
+        val ttdsBySizeId = mutableMapOf<String, MutableList<Double>>()
 
         sessions.forEach { session ->
             session.phases.forEach { phase ->
-                when (phase.size) {
-                    PhaseSize.SMALL -> smallTTDs.add(phase.ttdSeconds.toDouble())
-                    PhaseSize.MEDIUM -> mediumTTDs.add(phase.ttdSeconds.toDouble())
-                    PhaseSize.LARGE -> largeTTDs.add(phase.ttdSeconds.toDouble())
-                    PhaseSize.XL -> xlTTDs.add(phase.ttdSeconds.toDouble())
-                }
+                ttdsBySizeId.getOrPut(phase.sizeId) { mutableListOf() }.add(phase.ttdSeconds.toDouble())
             }
         }
 
@@ -371,10 +363,7 @@ class SessionStorage(private val context: Context) {
 
         return SessionStats(
             totalSessions = sessions.size,
-            smallTTD = calculateSimpleAverage(smallTTDs),
-            mediumTTD = calculateSimpleAverage(mediumTTDs),
-            largeTTD = calculateSimpleAverage(largeTTDs),
-            xlTTD = calculateSimpleAverage(xlTTDs),
+            ttdBySizeId = ttdsBySizeId.mapValues { (_, values) -> calculateSimpleAverage(values) },
             sessionLength = calculateSimpleAverage(sessions.map { it.totalSeconds.toDouble() }),
             avgTimeBetweenSessions = avgTimeBetweenSessions
         )
@@ -393,6 +382,7 @@ class SessionStorage(private val context: Context) {
             day0Date = loadDay0Date()?.let { isoFormat.format(Date(it)) },
             milestones = loadMilestones().map { MilestoneExport(isoFormat.format(Date(it.date)), it.comment) },
             tags = loadTags().map { TagExport(it.id, it.name, it.color.name) },
+            sizes = loadSizes().map { SizeExport(it.id, it.name, it.durations.map { d -> d.name }) },
             sessions = sessions.map { it.toExport() }
         )
 
@@ -744,7 +734,7 @@ class SessionStorage(private val context: Context) {
 
     private fun nearestPhaseDuration(seconds: Int): PhaseDuration {
         val minutes = seconds / 60.0
-        return listOf(PhaseDuration.FIVE, PhaseDuration.TEN, PhaseDuration.FIFTEEN, PhaseDuration.THIRTY)
+        return PhaseDuration.entries.filter { it != PhaseDuration.SKIP }
             .minByOrNull { kotlin.math.abs(it.minutes - minutes) }!!
     }
 
@@ -753,21 +743,12 @@ class SessionStorage(private val context: Context) {
      * Config is not exported, so it's always reconstructed from phases on import.
      */
     private fun inferConfigFromPhases(phases: List<PhaseData>): SessionConfig {
-        val small = phases.find { it.size == PhaseSize.SMALL }?.let {
-            PhaseDuration.entries.find { duration -> duration.minutes == it.dilationMinutes }
-        } ?: PhaseDuration.SKIP
-
-        val medium = phases.find { it.size == PhaseSize.MEDIUM }?.let {
-            PhaseDuration.entries.find { duration -> duration.minutes == it.dilationMinutes }
-        } ?: PhaseDuration.SKIP
-
-        val large = phases.find { it.size == PhaseSize.LARGE }?.let {
-            PhaseDuration.entries.find { duration -> duration.minutes == it.dilationMinutes }
-        } ?: PhaseDuration.SKIP
-
-        val xl = phases.find { it.size == PhaseSize.XL }?.let {
-            PhaseDuration.entries.find { duration -> duration.minutes == it.dilationMinutes }
-        } ?: PhaseDuration.SKIP
+        val phaseDurations = phases
+            .filter { it.sizeId.isNotEmpty() }
+            .associate { phase ->
+                val duration = PhaseDuration.entries.find { it.minutes == phase.dilationMinutes } ?: PhaseDuration.SKIP
+                phase.sizeId to duration
+            }
 
         // Check if any phase has depth recorded
         val hasDepth = phases.any { it.depthCm != null }
@@ -775,7 +756,12 @@ class SessionStorage(private val context: Context) {
         val actionTime = phases.firstOrNull()?.actionTime ?: 15
         val pauseSeconds = phases.firstOrNull()?.pauseSeconds ?: 0
 
-        return SessionConfig(small, medium, large, xl, actionTime, recordDepth = hasDepth, pauseSeconds = pauseSeconds)
+        return SessionConfig(
+            phaseDurations = phaseDurations,
+            actionTime = actionTime,
+            recordDepth = hasDepth,
+            pauseSeconds = pauseSeconds
+        )
     }
 }
 
@@ -791,12 +777,16 @@ data class MilestoneExport(
 
 data class TagExport(val id: String, val name: String, val color: String)
 
+data class SizeExport(val id: String, val name: String, val durations: List<String>)
+
 data class ExportData(
     val exportDate: String,
     val appVersion: String,
     val day0Date: String? = null,
     val milestones: List<MilestoneExport>? = null,
     val tags: List<TagExport>? = null,
+    // Nullable for backward compatibility with exports created before custom sizes existed.
+    val sizes: List<SizeExport>? = null,
     val sessions: List<SessionExport>
 )
 
