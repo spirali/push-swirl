@@ -688,14 +688,16 @@ class SessionStorage(private val context: Context) {
                 val phases = mutableListOf<PhaseData>()
                 if (mediumDurSec > 0) {
                     phases += PhaseData(
-                        size = PhaseSize.MEDIUM,
+                        sizeId = BuiltInSizeIds.MEDIUM,
+                        sizeName = "Medium",
                         ttdSeconds = insertionSec,
                         dilationMinutes = nearestPhaseDuration(mediumDurSec).minutes
                     )
                 }
                 if (largeDurSec > 0) {
                     phases += PhaseData(
-                        size = PhaseSize.LARGE,
+                        sizeId = BuiltInSizeIds.LARGE,
+                        sizeName = "Large",
                         ttdSeconds = 0L,
                         dilationMinutes = nearestPhaseDuration(largeDurSec).minutes,
                         depthCm = finalDepth
