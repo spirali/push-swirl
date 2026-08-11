@@ -38,7 +38,7 @@ import java.util.TimeZone
 @Composable
 fun SettingsScreen(viewModel: SessionViewModel) {
     val isWideScreen = LocalIsWideScreen.current
-    val sectionTitles = listOf("Progress", "Countdown", "Tags", "App", "Sounds")
+    val sectionTitles = listOf("Progress", "Countdown", "Tags", "Sizes", "App", "Sounds")
 
     val intervalMinutesTotal = viewModel.countdownIntervalMinutes
     var hoursText by remember(intervalMinutesTotal) { mutableStateOf((intervalMinutesTotal / 60).toString()) }
@@ -361,7 +361,9 @@ fun SettingsScreen(viewModel: SessionViewModel) {
 
                     2 -> TagsTabContent(viewModel)
 
-                    3 -> Column(
+                    3 -> SizesTabContent(viewModel)
+
+                    4 -> Column(
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(24.dp)
@@ -446,7 +448,7 @@ fun SettingsScreen(viewModel: SessionViewModel) {
                             )
                         }
                     }
-                    4 -> SoundsTabContent(viewModel)
+                    5 -> SoundsTabContent(viewModel)
                 }
             }
 
@@ -757,6 +759,175 @@ private fun TagDialog(
                     }
                 },
                 enabled = name.isNotBlank()
+            ) { Text("Save") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+@Composable
+private fun SizesTabContent(viewModel: SessionViewModel) {
+    var showDialog by remember { mutableStateOf(false) }
+    var editingSize by remember { mutableStateOf<PhaseSize?>(null) }
+    var pendingDeleteSize by remember { mutableStateOf<PhaseSize?>(null) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+            .verticalScroll(rememberScrollState())
+    ) {
+        Text(
+            text = "Sizes",
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(bottom = 12.dp)
+        )
+
+        viewModel.phaseSizes.forEach { size ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(size.name, fontSize = 16.sp)
+                    Text(
+                        text = size.durations.joinToString(", ") { "${it.minutes}m" },
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                }
+                Row {
+                    TextButton(onClick = {
+                        editingSize = size
+                        showDialog = true
+                    }) {
+                        Text("Edit")
+                    }
+                    TextButton(onClick = { pendingDeleteSize = size }) {
+                        Text("Remove", color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedButton(
+            onClick = {
+                editingSize = null
+                showDialog = true
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Add size")
+        }
+    }
+
+    if (showDialog) {
+        SizeDialog(
+            initial = editingSize,
+            onDismiss = { showDialog = false },
+            onSave = { size ->
+                if (editingSize == null) viewModel.addSize(size)
+                else viewModel.updateSize(size)
+                showDialog = false
+            }
+        )
+    }
+
+    if (pendingDeleteSize != null) {
+        val errorColor = MaterialTheme.colorScheme.error
+        AlertDialog(
+            onDismissRequest = { pendingDeleteSize = null },
+            title = { Text("Remove size") },
+            text = {
+                Text(buildAnnotatedString {
+                    append("Remove \"${pendingDeleteSize!!.name}\"?\n\n")
+                    withStyle(SpanStyle(color = errorColor)) {
+                        append("This size will be removed from statistics and from all recorded sessions.")
+                    }
+                })
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.removeSize(pendingDeleteSize!!)
+                    pendingDeleteSize = null
+                }) { Text("Remove", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDeleteSize = null }) { Text("Cancel") }
+            }
+        )
+    }
+}
+
+@Composable
+private fun SizeDialog(
+    initial: PhaseSize?,
+    onDismiss: () -> Unit,
+    onSave: (PhaseSize) -> Unit
+) {
+    var name by remember(initial) { mutableStateOf(initial?.name ?: "") }
+    var durations by remember(initial) {
+        mutableStateOf(initial?.durations?.toSet() ?: setOf(PhaseDuration.FIFTEEN))
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (initial == null) "Add size" else "Edit size") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Text(
+                    text = "Available durations",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    PhaseDuration.entries.filter { it != PhaseDuration.SKIP }.forEach { duration ->
+                        val isSelected = duration in durations
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = {
+                                durations = if (isSelected) durations - duration else durations + duration
+                            },
+                            label = { Text("${duration.minutes}m") },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (name.isNotBlank() && durations.isNotEmpty()) {
+                        val orderedDurations = PhaseDuration.entries.filter { it in durations }
+                        onSave(
+                            if (initial == null) PhaseSize(name = name.trim(), durations = orderedDurations)
+                            else initial.copy(name = name.trim(), durations = orderedDurations)
+                        )
+                    }
+                },
+                enabled = name.isNotBlank() && durations.isNotEmpty()
             ) { Text("Save") }
         },
         dismissButton = {
