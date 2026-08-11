@@ -271,6 +271,28 @@ class SessionStorage(private val context: Context) {
         }
     }
 
+    fun saveSizes(sizes: List<PhaseSize>) {
+        prefs.edit().putString("phase_sizes", gson.toJson(sizes)).apply()
+    }
+
+    fun loadSizes(): List<PhaseSize> {
+        val json = prefs.getString("phase_sizes", null)
+        return if (json != null) {
+            try {
+                gson.fromJson(json, object : TypeToken<List<PhaseSize>>() {}.type) ?: emptyList()
+            } catch (e: Exception) { emptyList() }
+        } else {
+            val defaults = listOf(
+                PhaseSize(id = BuiltInSizeIds.SMALL,  name = "Small"),
+                PhaseSize(id = BuiltInSizeIds.MEDIUM, name = "Medium"),
+                PhaseSize(id = BuiltInSizeIds.LARGE,  name = "Large"),
+                PhaseSize(id = BuiltInSizeIds.XL,     name = "XL")
+            )
+            saveSizes(defaults)
+            defaults
+        }
+    }
+
     fun saveStatsFilter(days: Int?, excludedKeys: Set<Long?>, tagIds: Set<String>) {
         prefs.edit()
             .putInt("stats_filter_days", days ?: -1)
