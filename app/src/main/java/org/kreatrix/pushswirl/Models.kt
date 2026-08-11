@@ -49,7 +49,7 @@ data class PhaseSize(
 @Parcelize
 data class SessionConfig(
     val phaseDurations: Map<String, PhaseDuration> = emptyMap(),
-    val actionTime: Int = 15,
+    val actionTime: Int = 0,
     val recordDepth: Boolean = false,
     val addTagsNoteAtEnd: Boolean = false,
     val blindedTtdTimer: Boolean = false,
