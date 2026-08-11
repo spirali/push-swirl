@@ -60,6 +60,7 @@ fun SessionHistoryScreen(viewModel: SessionViewModel) {
             ) {
                 SortControlsRow(
                     sortField = viewModel.historySortField,
+                    sizes = viewModel.phaseSizes,
                     ascending = viewModel.historySortAscending,
                     onFieldChange = { viewModel.historySortField = it },
                     onToggleDirection = { viewModel.historySortAscending = !viewModel.historySortAscending }
@@ -90,6 +91,7 @@ fun SessionHistoryScreen(viewModel: SessionViewModel) {
 @Composable
 private fun SortControlsRow(
     sortField: HistorySortField,
+    sizes: List<PhaseSize>,
     ascending: Boolean,
     onFieldChange: (HistorySortField) -> Unit,
     onToggleDirection: () -> Unit
@@ -108,7 +110,7 @@ private fun SortControlsRow(
             modifier = Modifier.weight(1f)
         ) {
             OutlinedTextField(
-                value = sortField.label,
+                value = sortField.label(sizes),
                 onValueChange = {},
                 readOnly = true,
                 label = { Text("Sort by") },
@@ -119,9 +121,9 @@ private fun SortControlsRow(
                 singleLine = true
             )
             ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                HistorySortField.entries.forEach { field ->
+                HistorySortField.entries(sizes).forEach { field ->
                     DropdownMenuItem(
-                        text = { Text(field.label) },
+                        text = { Text(field.label(sizes)) },
                         onClick = { onFieldChange(field); expanded = false },
                         contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
                     )
@@ -202,7 +204,7 @@ fun SessionCard(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(text = phase.size.name, fontWeight = FontWeight.Medium)
+                                Text(text = phase.sizeName, fontWeight = FontWeight.Medium)
                                 if (phase.wasFinishedEarly) {
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Surface(
