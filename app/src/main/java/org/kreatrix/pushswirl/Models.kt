@@ -15,52 +15,60 @@ data class Tag(
     val color: TagColor
 ) : Parcelable
 
-enum class PhaseSize {
-    SMALL, MEDIUM, LARGE, XL
-}
-
 enum class PhaseDuration(val minutes: Int) {
     SKIP(0),
     FIVE(5),
     TEN(10),
     FIFTEEN(15),
-    THIRTY(30)
+    TWENTY_FIVE(25),
+    THIRTY(30),
+    FORTY(40),
+    FIFTY(50),
+    SIXTY(60)
 }
 
 enum class DilationAction {
     PUSH, SWIRL
 }
 
+// Default values shipped in the app
+object BuiltInSizeIds {
+    const val SMALL = "builtin-small"
+    const val MEDIUM = "builtin-medium"
+    const val LARGE = "builtin-large"
+    const val XL = "builtin-xl"
+}
+
+@Parcelize
+data class PhaseSize(
+    val id: String = UUID.randomUUID().toString(),
+    val name: String,
+    val durations: List<PhaseDuration> = PhaseDuration.entries.filter { it != PhaseDuration.SKIP }
+) : Parcelable
+
 @Parcelize
 data class SessionConfig(
-    val small: PhaseDuration = PhaseDuration.SKIP,
-    val medium: PhaseDuration = PhaseDuration.FIFTEEN,
-    val large: PhaseDuration = PhaseDuration.TEN,
-    val xl: PhaseDuration = PhaseDuration.SKIP,
-    val actionTime: Int = 15,
+    val phaseDurations: Map<String, PhaseDuration> = emptyMap(),
+    val actionTime: Int = 0,
     val recordDepth: Boolean = false,
     val addTagsNoteAtEnd: Boolean = false,
     val blindedTtdTimer: Boolean = false,
     // Rest inserted after each push/swirl switch, in seconds. 0 = no pause.
     val pauseSeconds: Int = 0
 ) : Parcelable {
-    fun getDuration(size: PhaseSize): PhaseDuration {
-        return when (size) {
-            PhaseSize.SMALL -> small
-            PhaseSize.MEDIUM -> medium
-            PhaseSize.LARGE -> large
-            PhaseSize.XL -> xl
-        }
+    fun getDuration(sizeId: String): PhaseDuration {
+        return phaseDurations[sizeId] ?: PhaseDuration.SKIP
     }
 
-    fun getActivePhases(): List<PhaseSize> {
-        return PhaseSize.entries.filter { getDuration(it) != PhaseDuration.SKIP }
+    fun getActivePhases(sizes: List<PhaseSize>): List<PhaseSize> {
+        return sizes.filter { getDuration(it.id) != PhaseDuration.SKIP }
     }
 }
 
 @Parcelize
 data class PhaseData(
-    val size: PhaseSize,
+    val sizeId: String = "",
+    val sizeName: String = "",
     val ttdSeconds: Long,
     val dilationMinutes: Int,
     // Nullable for backward compatibility with old sessions that predate action time config
@@ -101,10 +109,7 @@ data class Session(
 ) : Parcelable
 
 data class SessionStats(
-    val smallTTD: Double,
-    val mediumTTD: Double,
-    val largeTTD: Double,
-    val xlTTD: Double,
+    val ttdBySizeId: Map<String, Double>,
     val sessionLength: Double,
     val totalSessions: Int,
     val avgTimeBetweenSessions: Double  // in seconds; 0 if fewer than 2 sessions
@@ -142,7 +147,7 @@ data class ActiveSessionSnapshot(
     val completedPhases: List<PhaseData>,
     val currentPhaseIndex: Int,
     val stateType: String,            // "TTD", "DEPTH_INPUT", "DILATION"
-    val currentPhaseSize: String,     // PhaseSize enum name
+    val currentPhaseSizeId: String,   // PhaseSize id
     val sessionStartWallClock: Long,  // System.currentTimeMillis() at session start
     val saveWallClock: Long,          // System.currentTimeMillis() when snapshot was saved
     val ttdElapsedMs: Long,           // total accumulated TTD ms at save time

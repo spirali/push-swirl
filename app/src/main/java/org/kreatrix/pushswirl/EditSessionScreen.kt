@@ -154,7 +154,7 @@ fun EditSessionScreen(viewModel: SessionViewModel) {
 
             session.phases.forEachIndexed { i, phase ->
                 Text(
-                    text = phase.size.name,
+                    text = phase.sizeName,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.primary

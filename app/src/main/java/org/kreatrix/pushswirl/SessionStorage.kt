@@ -7,6 +7,9 @@ import android.os.Build
 import androidx.core.content.FileProvider
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
+import com.google.gson.JsonArray
+import com.google.gson.JsonElement
+import com.google.gson.JsonObject
 import com.google.gson.JsonSyntaxException
 import com.google.gson.reflect.TypeToken
 import java.io.File
@@ -43,9 +46,64 @@ class SessionStorage(private val context: Context) {
 
     fun loadSessions(): List<Session> {
         val json = prefs.getString("sessions", null) ?: return emptyList()
+        val sessions = migrateSessionsJson(json)
         val type = object : TypeToken<List<Session>>() {}.type
-        val raw: List<Session> = gson.fromJson(json, type) ?: return emptyList()
+        val raw: List<Session> = gson.fromJson(sessions, type) ?: return emptyList()
         return raw.map { it.withNullDefaults() }
+    }
+
+    /**
+     * Ensure backward compatibility : migrate session JSON from 
+     * previous version that used custom sizes (small, medium, large, XL)
+     *  - phases[].size -> sizeId / sizeName
+     *  - config.small/medium/large/xl -> config.phaseDurations
+     */
+    private fun migrateSessionsJson(json: String): JsonElement {
+        val root = try {
+            com.google.gson.JsonParser.parseString(json)
+        } catch (e: Exception) {
+            return com.google.gson.JsonParser.parseString(json)
+        }
+        if (root !is JsonArray) return root
+
+        for (element in root) {
+            if (element !is JsonObject) continue
+            migrateSessionConfigJson(element.getAsJsonObject("config"))
+            val phases = element.getAsJsonArray("phases")
+            phases?.forEach { phaseElement ->
+                if (phaseElement is JsonObject) migratePhaseJson(phaseElement)
+            }
+        }
+        return root
+    }
+
+    private fun migrateSessionConfigJson(config: JsonObject?) {
+        config ?: return
+        if (config.has("phaseDurations")) return
+        val map = JsonObject()
+        fun copyIfPresent(oldField: String, sizeId: String) {
+            val value = config.get(oldField)?.asString ?: return
+            map.addProperty(sizeId, value)
+        }
+        copyIfPresent("small", BuiltInSizeIds.SMALL)
+        copyIfPresent("medium", BuiltInSizeIds.MEDIUM)
+        copyIfPresent("large", BuiltInSizeIds.LARGE)
+        copyIfPresent("xl", BuiltInSizeIds.XL)
+        config.add("phaseDurations", map)
+    }
+
+    private fun migratePhaseJson(phase: JsonObject) {
+        if (phase.has("sizeId")) return
+        val oldSize = phase.get("size")?.asString ?: return
+        val (sizeId, sizeName) = when (oldSize) {
+            "SMALL" -> BuiltInSizeIds.SMALL to "Small"
+            "MEDIUM" -> BuiltInSizeIds.MEDIUM to "Medium"
+            "LARGE" -> BuiltInSizeIds.LARGE to "Large"
+            "XL" -> BuiltInSizeIds.XL to "XL"
+            else -> return
+        }
+        phase.addProperty("sizeId", sizeId)
+        phase.addProperty("sizeName", sizeName)
     }
 
     fun addSession(session: Session) {
@@ -213,6 +271,28 @@ class SessionStorage(private val context: Context) {
         }
     }
 
+    fun saveSizes(sizes: List<PhaseSize>) {
+        prefs.edit().putString("phase_sizes", gson.toJson(sizes)).apply()
+    }
+
+    fun loadSizes(): List<PhaseSize> {
+        val json = prefs.getString("phase_sizes", null)
+        return if (json != null) {
+            try {
+                gson.fromJson(json, object : TypeToken<List<PhaseSize>>() {}.type) ?: emptyList()
+            } catch (e: Exception) { emptyList() }
+        } else {
+            val defaults = listOf(
+                PhaseSize(id = BuiltInSizeIds.SMALL,  name = "Small"),
+                PhaseSize(id = BuiltInSizeIds.MEDIUM, name = "Medium"),
+                PhaseSize(id = BuiltInSizeIds.LARGE,  name = "Large"),
+                PhaseSize(id = BuiltInSizeIds.XL,     name = "XL")
+            )
+            saveSizes(defaults)
+            defaults
+        }
+    }
+
     fun saveStatsFilter(days: Int?, excludedKeys: Set<Long?>, tagIds: Set<String>) {
         prefs.edit()
             .putInt("stats_filter_days", days ?: -1)
@@ -244,12 +324,12 @@ class SessionStorage(private val context: Context) {
         return StatsFilter(days, keys, tagIds)
     }
 
-    fun getLastDepthForSize(size: PhaseSize): Float {
+    fun getLastDepthForSize(sizeId: String): Float {
         // Get the last recorded depth from sessions that have depth recorded
         val sessions = loadSessions()
         val lastPhaseWithDepth = sessions
             .flatMap { it.phases }
-            .filter { it.size == size && it.depthCm != null }
+            .filter { it.sizeId == sizeId && it.depthCm != null }
             .firstOrNull()
 
         return lastPhaseWithDepth?.depthCm ?: 14f
@@ -265,21 +345,13 @@ class SessionStorage(private val context: Context) {
     }
 
     fun calculateStatsFromSessions(sessions: List<Session>): SessionStats {
-        if (sessions.isEmpty()) return SessionStats(0.0, 0.0, 0.0, 0.0, 0.0, 0, 0.0)
+        if (sessions.isEmpty()) return SessionStats(emptyMap(), 0.0, 0, 0.0)
 
-        val smallTTDs = mutableListOf<Double>()
-        val mediumTTDs = mutableListOf<Double>()
-        val largeTTDs = mutableListOf<Double>()
-        val xlTTDs = mutableListOf<Double>()
+        val ttdsBySizeId = mutableMapOf<String, MutableList<Double>>()
 
         sessions.forEach { session ->
             session.phases.forEach { phase ->
-                when (phase.size) {
-                    PhaseSize.SMALL -> smallTTDs.add(phase.ttdSeconds.toDouble())
-                    PhaseSize.MEDIUM -> mediumTTDs.add(phase.ttdSeconds.toDouble())
-                    PhaseSize.LARGE -> largeTTDs.add(phase.ttdSeconds.toDouble())
-                    PhaseSize.XL -> xlTTDs.add(phase.ttdSeconds.toDouble())
-                }
+                ttdsBySizeId.getOrPut(phase.sizeId) { mutableListOf() }.add(phase.ttdSeconds.toDouble())
             }
         }
 
@@ -291,10 +363,7 @@ class SessionStorage(private val context: Context) {
 
         return SessionStats(
             totalSessions = sessions.size,
-            smallTTD = calculateSimpleAverage(smallTTDs),
-            mediumTTD = calculateSimpleAverage(mediumTTDs),
-            largeTTD = calculateSimpleAverage(largeTTDs),
-            xlTTD = calculateSimpleAverage(xlTTDs),
+            ttdBySizeId = ttdsBySizeId.mapValues { (_, values) -> calculateSimpleAverage(values) },
             sessionLength = calculateSimpleAverage(sessions.map { it.totalSeconds.toDouble() }),
             avgTimeBetweenSessions = avgTimeBetweenSessions
         )
@@ -313,6 +382,7 @@ class SessionStorage(private val context: Context) {
             day0Date = loadDay0Date()?.let { isoFormat.format(Date(it)) },
             milestones = loadMilestones().map { MilestoneExport(isoFormat.format(Date(it.date)), it.comment) },
             tags = loadTags().map { TagExport(it.id, it.name, it.color.name) },
+            sizes = loadSizes().map { SizeExport(it.id, it.name, it.durations.map { d -> d.name }) },
             sessions = sessions.map { it.toExport() }
         )
 
@@ -401,9 +471,11 @@ class SessionStorage(private val context: Context) {
             val json = inputStream?.bufferedReader()?.use { it.readText() }
                 ?: return ImportResult.Error("Could not read file")
 
+            val patchedJson = migrateExportJson(json)
+
             // Try to parse as ExportData first
             val exportData = try {
-                gson.fromJson(json, ExportData::class.java)
+                gson.fromJson(patchedJson, ExportData::class.java)
             } catch (e: JsonSyntaxException) {
                 return ImportResult.Error("Invalid file format")
             }
@@ -496,10 +568,56 @@ class SessionStorage(private val context: Context) {
                 if (changed) saveTags(localTags)
             }
 
+            // Merge imported sizes.
+            // Add any size whose id is not already in local storage.
+            exportData.sizes?.let { exportedSizes ->
+                val localSizes = loadSizes().toMutableList()
+                val localSizeIds = localSizes.map { it.id }.toHashSet()
+                var changed = false
+                for (sizeExport in exportedSizes) {
+                    if (sizeExport.id !in localSizeIds) {
+                        val durations = sizeExport.durations.mapNotNull {
+                            try { PhaseDuration.valueOf(it) } catch (_: IllegalArgumentException) { null }
+                        }
+                        localSizes += PhaseSize(
+                            id = sizeExport.id,
+                            name = sizeExport.name,
+                            durations = durations.ifEmpty {
+                                PhaseDuration.entries.filter { it != PhaseDuration.SKIP }
+                            }
+                        )
+                        changed = true
+                    }
+                }
+                if (changed) saveSizes(localSizes)
+            }
+
             ImportResult.Success(importedCount, skippedCount)
         } catch (e: Exception) {
             ImportResult.Error("Import failed: ${e.message}")
         }
+    }
+
+    /**
+     * Ensure backward compatibility with previously exported JSON
+     * before custom sizes existed. 
+     */
+    private fun migrateExportJson(json: String): String {
+        val root = try {
+            com.google.gson.JsonParser.parseString(json)
+        } catch (e: Exception) {
+            return json
+        }
+        if (root !is JsonObject) return json
+        val sessions = root.getAsJsonArray("sessions") ?: return json
+        sessions.forEach { sessionElement ->
+            if (sessionElement !is JsonObject) return@forEach
+            val phases = sessionElement.getAsJsonArray("phases") ?: return@forEach
+            phases.forEach { phaseElement ->
+                if (phaseElement is JsonObject) migratePhaseJson(phaseElement)
+            }
+        }
+        return root.toString()
     }
 
     /**
@@ -570,14 +688,16 @@ class SessionStorage(private val context: Context) {
                 val phases = mutableListOf<PhaseData>()
                 if (mediumDurSec > 0) {
                     phases += PhaseData(
-                        size = PhaseSize.MEDIUM,
+                        sizeId = BuiltInSizeIds.MEDIUM,
+                        sizeName = "Medium",
                         ttdSeconds = insertionSec,
                         dilationMinutes = nearestPhaseDuration(mediumDurSec).minutes
                     )
                 }
                 if (largeDurSec > 0) {
                     phases += PhaseData(
-                        size = PhaseSize.LARGE,
+                        sizeId = BuiltInSizeIds.LARGE,
+                        sizeName = "Large",
                         ttdSeconds = 0L,
                         dilationMinutes = nearestPhaseDuration(largeDurSec).minutes,
                         depthCm = finalDepth
@@ -616,7 +736,7 @@ class SessionStorage(private val context: Context) {
 
     private fun nearestPhaseDuration(seconds: Int): PhaseDuration {
         val minutes = seconds / 60.0
-        return listOf(PhaseDuration.FIVE, PhaseDuration.TEN, PhaseDuration.FIFTEEN, PhaseDuration.THIRTY)
+        return PhaseDuration.entries.filter { it != PhaseDuration.SKIP }
             .minByOrNull { kotlin.math.abs(it.minutes - minutes) }!!
     }
 
@@ -625,29 +745,25 @@ class SessionStorage(private val context: Context) {
      * Config is not exported, so it's always reconstructed from phases on import.
      */
     private fun inferConfigFromPhases(phases: List<PhaseData>): SessionConfig {
-        val small = phases.find { it.size == PhaseSize.SMALL }?.let {
-            PhaseDuration.entries.find { duration -> duration.minutes == it.dilationMinutes }
-        } ?: PhaseDuration.SKIP
-
-        val medium = phases.find { it.size == PhaseSize.MEDIUM }?.let {
-            PhaseDuration.entries.find { duration -> duration.minutes == it.dilationMinutes }
-        } ?: PhaseDuration.SKIP
-
-        val large = phases.find { it.size == PhaseSize.LARGE }?.let {
-            PhaseDuration.entries.find { duration -> duration.minutes == it.dilationMinutes }
-        } ?: PhaseDuration.SKIP
-
-        val xl = phases.find { it.size == PhaseSize.XL }?.let {
-            PhaseDuration.entries.find { duration -> duration.minutes == it.dilationMinutes }
-        } ?: PhaseDuration.SKIP
+        val phaseDurations = phases
+            .filter { it.sizeId.isNotEmpty() }
+            .associate { phase ->
+                val duration = PhaseDuration.entries.find { it.minutes == phase.dilationMinutes } ?: PhaseDuration.SKIP
+                phase.sizeId to duration
+            }
 
         // Check if any phase has depth recorded
         val hasDepth = phases.any { it.depthCm != null }
 
-        val actionTime = phases.firstOrNull()?.actionTime ?: 15
+        val actionTime = phases.firstOrNull()?.actionTime ?: 0
         val pauseSeconds = phases.firstOrNull()?.pauseSeconds ?: 0
 
-        return SessionConfig(small, medium, large, xl, actionTime, recordDepth = hasDepth, pauseSeconds = pauseSeconds)
+        return SessionConfig(
+            phaseDurations = phaseDurations,
+            actionTime = actionTime,
+            recordDepth = hasDepth,
+            pauseSeconds = pauseSeconds
+        )
     }
 }
 
@@ -663,12 +779,16 @@ data class MilestoneExport(
 
 data class TagExport(val id: String, val name: String, val color: String)
 
+data class SizeExport(val id: String, val name: String, val durations: List<String>)
+
 data class ExportData(
     val exportDate: String,
     val appVersion: String,
     val day0Date: String? = null,
     val milestones: List<MilestoneExport>? = null,
     val tags: List<TagExport>? = null,
+    // Nullable for backward compatibility with exports created before custom sizes existed.
+    val sizes: List<SizeExport>? = null,
     val sessions: List<SessionExport>
 )
 

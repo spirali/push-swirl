@@ -19,16 +19,22 @@ import androidx.compose.ui.unit.sp
 fun NewSessionScreen(viewModel: SessionViewModel) {
     BackHandler { viewModel.navigateTo(AppScreen.Home) }
 
-    var small by remember { mutableStateOf(viewModel.sessionConfig.small) }
-    var medium by remember { mutableStateOf(viewModel.sessionConfig.medium) }
-    var large by remember { mutableStateOf(viewModel.sessionConfig.large) }
-    var xl by remember { mutableStateOf(viewModel.sessionConfig.xl) }
+    var phaseDurations by remember { mutableStateOf(viewModel.sessionConfig.phaseDurations) }
     var actionTime by remember { mutableStateOf(viewModel.sessionConfig.actionTime) }
     var pauseSeconds by remember { mutableStateOf(viewModel.sessionConfig.pauseSeconds) }
     var recordDepth by remember { mutableStateOf(viewModel.sessionConfig.recordDepth) }
     var addTagsNoteAtEnd by remember { mutableStateOf(viewModel.sessionConfig.addTagsNoteAtEnd) }
     var blindedTtdTimer by remember { mutableStateOf(viewModel.sessionConfig.blindedTtdTimer) }
     var selectedTab by remember { mutableStateOf(0) }
+
+    fun buildConfig() = SessionConfig(
+        phaseDurations = phaseDurations,
+        actionTime = actionTime,
+        recordDepth = recordDepth,
+        addTagsNoteAtEnd = addTagsNoteAtEnd,
+        blindedTtdTimer = blindedTtdTimer,
+        pauseSeconds = pauseSeconds
+    )
 
     Scaffold(
         topBar = {
@@ -77,7 +83,7 @@ fun NewSessionScreen(viewModel: SessionViewModel) {
                         Spacer(modifier = Modifier.weight(1f))
                         Button(
                             onClick = {
-                                viewModel.updateConfig(SessionConfig(small, medium, large, xl, actionTime, recordDepth, addTagsNoteAtEnd, blindedTtdTimer, pauseSeconds))
+                                viewModel.updateConfig(buildConfig())
                                 viewModel.startSession()
                             },
                             modifier = Modifier
@@ -107,20 +113,24 @@ fun NewSessionScreen(viewModel: SessionViewModel) {
                                 .padding(24.dp),
                             horizontalAlignment = Alignment.Start
                         ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(24.dp)
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    PhaseSelector("Small", small) { small = it }
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    PhaseSelector("Large", large) { large = it }
+                            viewModel.phaseSizes.chunked(2).forEach { pair ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(24.dp)
+                                ) {
+                                    pair.forEach { size ->
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            PhaseSelector(
+                                                label = size.name,
+                                                selected = phaseDurations[size.id] ?: PhaseDuration.SKIP,
+                                                availableDurations = listOf(PhaseDuration.SKIP) + size.durations,
+                                                onSelect = { phaseDurations = phaseDurations + (size.id to it) }
+                                            )
+                                        }
+                                    }
+                                    if (pair.size == 1) Spacer(modifier = Modifier.weight(1f))
                                 }
-                                Column(modifier = Modifier.weight(1f)) {
-                                    PhaseSelector("Medium", medium) { medium = it }
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    PhaseSelector("XL", xl) { xl = it }
-                                }
+                                Spacer(modifier = Modifier.height(12.dp))
                             }
                         }
                         1 -> Column(
@@ -201,7 +211,7 @@ fun NewSessionScreen(viewModel: SessionViewModel) {
                 Column(modifier = Modifier.fillMaxSize()) {
                     Button(
                         onClick = {
-                            viewModel.updateConfig(SessionConfig(small, medium, large, xl, actionTime, recordDepth, addTagsNoteAtEnd, blindedTtdTimer, pauseSeconds))
+                            viewModel.updateConfig(buildConfig())
                             viewModel.startSession()
                         },
                         modifier = Modifier
@@ -236,13 +246,15 @@ fun NewSessionScreen(viewModel: SessionViewModel) {
                                 .verticalScroll(rememberScrollState()),
                             horizontalAlignment = Alignment.Start
                         ) {
-                            PhaseSelector("Small", small) { small = it }
-                            Spacer(modifier = Modifier.height(12.dp))
-                            PhaseSelector("Medium", medium) { medium = it }
-                            Spacer(modifier = Modifier.height(12.dp))
-                            PhaseSelector("Large", large) { large = it }
-                            Spacer(modifier = Modifier.height(12.dp))
-                            PhaseSelector("XL", xl) { xl = it }
+                            viewModel.phaseSizes.forEach { size ->
+                                PhaseSelector(
+                                    label = size.name,
+                                    selected = phaseDurations[size.id] ?: PhaseDuration.SKIP,
+                                    availableDurations = listOf(PhaseDuration.SKIP) + size.durations,
+                                    onSelect = { phaseDurations = phaseDurations + (size.id to it) }
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                            }
                         }
                         1 -> Column(
                             modifier = Modifier
@@ -326,6 +338,7 @@ fun NewSessionScreen(viewModel: SessionViewModel) {
 fun PhaseSelector(
     label: String,
     selected: PhaseDuration,
+    availableDurations: List<PhaseDuration>,
     onSelect: (PhaseDuration) -> Unit
 ) {
     Column {
@@ -341,7 +354,7 @@ fun PhaseSelector(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            PhaseDuration.entries.forEach { duration ->
+            availableDurations.forEach { duration ->
                 val isSelected = selected == duration
                 val chipLabel = when (duration) {
                     PhaseDuration.SKIP -> "X"

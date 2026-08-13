@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## v1.16
+
+* Add system to create custom sizes
+* Add new durations choices
+* Set default action time to static
+
 ## v1.15
 
 * Blinded TTD timer now shows a pulsing animation instead of "??:XX"

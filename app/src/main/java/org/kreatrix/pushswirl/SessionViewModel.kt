@@ -33,13 +33,22 @@ sealed class SessionState {
     object TagNoteInput : SessionState()
 }
 
-enum class HistorySortField(val label: String) {
-    DATE("Date"),
-    SESSION_LENGTH("Length"),
-    TTD_SMALL("TTD Small"),
-    TTD_MEDIUM("TTD Medium"),
-    TTD_LARGE("TTD Large"),
-    TTD_XL("TTD XL")
+sealed class HistorySortField {
+    object Date : HistorySortField()
+    object SessionLength : HistorySortField()
+    data class TtdForSize(val sizeId: String) : HistorySortField()
+
+    fun label(sizes: List<PhaseSize>): String = when (this) {
+        is Date -> "Date"
+        is SessionLength -> "Session Length"
+        is TtdForSize -> "TTD: ${sizes.find { it.id == sizeId }?.name ?: "Unknown"}"
+    }
+
+    companion object {
+        // All selectable sort options for the current size list
+        fun entries(sizes: List<PhaseSize>): List<HistorySortField> =
+            listOf(Date, SessionLength) + sizes.map { TtdForSize(it.id) }
+    }
 }
 
 class SessionViewModel(application: Application) : AndroidViewModel(application) {
@@ -62,6 +71,8 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     var day0Date by mutableStateOf(storage.loadDay0Date())
     var milestones by mutableStateOf(storage.loadMilestones())
     var tags by mutableStateOf(storage.loadTags())
+        private set
+    var phaseSizes by mutableStateOf(storage.loadSizes())
         private set
 
     // Interrupted session resume
@@ -160,21 +171,18 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
 
     // History and stats
     var sessions by mutableStateOf(storage.loadSessions())
-    var historySortField by mutableStateOf(HistorySortField.DATE)
+    var historySortField by mutableStateOf<HistorySortField>(HistorySortField.Date)
     var historySortAscending by mutableStateOf(false)
 
     val sortedSessions: List<Session>
         get() {
-            fun Session.ttdFor(size: PhaseSize): Long =
-                phases.find { it.size == size }?.ttdSeconds ?: Long.MAX_VALUE
+            fun Session.ttdFor(sizeId: String): Long =
+                phases.find { it.sizeId == sizeId }?.ttdSeconds ?: Long.MAX_VALUE
             val cmp = Comparator<Session> { a, b ->
-                when (historySortField) {
-                    HistorySortField.DATE           -> a.timestamp.compareTo(b.timestamp)
-                    HistorySortField.SESSION_LENGTH -> a.totalSeconds.compareTo(b.totalSeconds)
-                    HistorySortField.TTD_SMALL      -> a.ttdFor(PhaseSize.SMALL).compareTo(b.ttdFor(PhaseSize.SMALL))
-                    HistorySortField.TTD_MEDIUM     -> a.ttdFor(PhaseSize.MEDIUM).compareTo(b.ttdFor(PhaseSize.MEDIUM))
-                    HistorySortField.TTD_LARGE      -> a.ttdFor(PhaseSize.LARGE).compareTo(b.ttdFor(PhaseSize.LARGE))
-                    HistorySortField.TTD_XL         -> a.ttdFor(PhaseSize.XL).compareTo(b.ttdFor(PhaseSize.XL))
+                when (val field = historySortField) {
+                    is HistorySortField.Date -> a.timestamp.compareTo(b.timestamp)
+                    is HistorySortField.SessionLength -> a.totalSeconds.compareTo(b.totalSeconds)
+                    is HistorySortField.TtdForSize -> a.ttdFor(field.sizeId).compareTo(b.ttdFor(field.sizeId))
                 }
             }
             return if (historySortAscending) sessions.sortedWith(cmp) else sessions.sortedWith(cmp.reversed())
@@ -220,10 +228,10 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         return result
     }
 
-    var ttdVisibleSizes by mutableStateOf(PhaseSize.entries.toSet())
+    var ttdVisibleSizes by mutableStateOf(phaseSizes.map { it.id }.toSet())
 
-    fun toggleTtdSize(size: PhaseSize) {
-        ttdVisibleSizes = if (size in ttdVisibleSizes) ttdVisibleSizes - size else ttdVisibleSizes + size
+    fun toggleTtdSize(sizeId: String) {
+        ttdVisibleSizes = if (sizeId in ttdVisibleSizes) ttdVisibleSizes - sizeId else ttdVisibleSizes + sizeId
     }
 
     init {
@@ -373,6 +381,55 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     }
 
     // ============================================================================
+    // PHASE SIZES
+    // ============================================================================
+
+    fun addSize(size: PhaseSize) {
+        phaseSizes = phaseSizes + size
+        storage.saveSizes(phaseSizes)
+        ttdVisibleSizes = ttdVisibleSizes + size.id
+    }
+
+    fun updateSize(updated: PhaseSize) {
+        phaseSizes = phaseSizes.map { if (it.id == updated.id) updated else it }
+        storage.saveSizes(phaseSizes)
+    }
+
+    fun removeSize(size: PhaseSize) {
+        phaseSizes = phaseSizes.filter { it.id != size.id }
+        storage.saveSizes(phaseSizes)
+
+        // Remove the saved sessions from history / stats
+        val updatedSessions = sessions.map { session ->
+            val newPhases = session.phases.filter { it.sizeId != size.id }
+            if (newPhases.size != session.phases.size) {
+                session.copy(
+                    phases = newPhases,
+                    config = session.config.copy(
+                        phaseDurations = session.config.phaseDurations - size.id
+                    )
+                )
+            } else session
+        }
+        if (updatedSessions != sessions) {
+            updatedSessions.forEach { storage.saveOrUpdateSession(it) }
+            sessions = storage.loadSessions()
+            stats = recomputeStats()
+        }
+
+        // Remove from the session config 
+        sessionConfig = sessionConfig.copy(phaseDurations = sessionConfig.phaseDurations - size.id)
+        // Remove from TTD chart visibility.
+        ttdVisibleSizes = ttdVisibleSizes - size.id
+
+        // If history was sorted by this size's TTD, fall back to Date
+        val currentSort = historySortField
+        if (currentSort is HistorySortField.TtdForSize && currentSort.sizeId == size.id) {
+            historySortField = HistorySortField.Date
+        }
+    }
+
+    // ============================================================================
     // DEPTH INPUT
     // ============================================================================
 
@@ -390,7 +447,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     // ============================================================================
 
     fun startSession() {
-        activePhases = sessionConfig.getActivePhases()
+        activePhases = sessionConfig.getActivePhases(phaseSizes)
         if (activePhases.isEmpty()) return
 
         currentPhaseIndex = 0
@@ -427,7 +484,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
 
         // Load the last depth for this phase size
         if (sessionConfig.recordDepth) {
-            currentDepthInput = storage.getLastDepthForSize(phase)
+            currentDepthInput = storage.getLastDepthForSize(phase.id)
         }
     }
 
@@ -459,9 +516,10 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         lastTtdSeconds = calculateTtdSeconds()
         pauseTTD()
         val phase = activePhases[currentPhaseIndex]
-        val plannedMinutes = sessionConfig.getDuration(phase).minutes
+        val plannedMinutes = sessionConfig.getDuration(phase.id).minutes
         saveSessionCheckpoint(PhaseData(
-            size = phase,
+            sizeId = phase.id,
+            sizeName = phase.name,
             ttdSeconds = lastTtdSeconds,
             dilationMinutes = plannedMinutes,
             actionTime = sessionConfig.actionTime,
@@ -477,7 +535,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
 
     private fun startDilationForCurrentPhase() {
         val phase = activePhases[currentPhaseIndex]
-        val duration = sessionConfig.getDuration(phase)
+        val duration = sessionConfig.getDuration(phase.id)
 
         dilationTotalSeconds = duration.minutes * 60
         dilationStartTime = SystemClock.elapsedRealtime()
@@ -654,9 +712,10 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         // If depth recording is enabled, show depth input before advancing
         if (sessionConfig.recordDepth) {
             val phase = activePhases[currentPhaseIndex]
-            val duration = sessionConfig.getDuration(phase)
+            val duration = sessionConfig.getDuration(phase.id)
             saveSessionCheckpoint(PhaseData(
-                size = phase,
+                sizeId = phase.id,
+                sizeName = phase.name,
                 ttdSeconds = lastTtdSeconds,
                 dilationMinutes = duration.minutes,
                 actionTime = sessionConfig.actionTime,
@@ -672,10 +731,11 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     private fun saveCurrentPhaseAndAdvance() {
         // Save completed phase (with early finish info and depth if applicable)
         val phase = activePhases[currentPhaseIndex]
-        val duration = sessionConfig.getDuration(phase)
+        val duration = sessionConfig.getDuration(phase.id)
         completedPhases.add(
             PhaseData(
-                size = phase,
+                sizeId = phase.id,
+                sizeName = phase.name,
                 ttdSeconds = lastTtdSeconds,
                 dilationMinutes = duration.minutes,
                 actionTime = sessionConfig.actionTime,
@@ -780,6 +840,8 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     fun importSessions(uri: android.net.Uri): ImportResult {
         val result = storage.importSessionsFromUri(uri)
         sessions = storage.loadSessions()
+        phaseSizes = storage.loadSizes()
+        ttdVisibleSizes = phaseSizes.map { it.id }.toSet()
         stats = recomputeStats()
         return result
     }
@@ -809,9 +871,10 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
             is SessionState.Dilation -> {
                 val phase = activePhases[currentPhaseIndex]
                 PhaseData(
-                    size = phase,
+                    sizeId = phase.id,
+                    sizeName = phase.name,
                     ttdSeconds = lastTtdSeconds,
-                    dilationMinutes = sessionConfig.getDuration(phase).minutes,
+                    dilationMinutes = sessionConfig.getDuration(phase.id).minutes,
                     actionTime = sessionConfig.actionTime,
                     pauseSeconds = sessionConfig.pauseSeconds.takeIf { it > 0 },
                     earlyFinishSecondsRemaining = calculateDilationRemainingSeconds(),
@@ -822,9 +885,10 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
                 // Dilation already finished; save the phase without depth (not yet entered)
                 val phase = activePhases[currentPhaseIndex]
                 PhaseData(
-                    size = phase,
+                    sizeId = phase.id,
+                    sizeName = phase.name,
                     ttdSeconds = lastTtdSeconds,
-                    dilationMinutes = sessionConfig.getDuration(phase).minutes,
+                    dilationMinutes = sessionConfig.getDuration(phase.id).minutes,
                     actionTime = sessionConfig.actionTime,
                     pauseSeconds = sessionConfig.pauseSeconds.takeIf { it > 0 },
                     earlyFinishSecondsRemaining = earlyFinishSecondsRemaining,
@@ -906,7 +970,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
             completedPhases = completedPhases.toList(),
             currentPhaseIndex = currentPhaseIndex,
             stateType = stateType,
-            currentPhaseSize = phase.name,
+            currentPhaseSizeId = phase.id,
             sessionStartWallClock = sessionStartTime,
             saveWallClock = System.currentTimeMillis(),
             ttdElapsedMs = ttdElapsedMs,
@@ -931,7 +995,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         currentPhaseIndex = snapshot.currentPhaseIndex
         completedPhases.clear()
         completedPhases.addAll(snapshot.completedPhases)
-        activePhases = sessionConfig.getActivePhases()
+        activePhases = sessionConfig.getActivePhases(phaseSizes)
 
         val intent = Intent(getApplication(), TimerService::class.java).apply {
             putExtra("soundMode", notificationSettings.soundMode.name)
@@ -945,7 +1009,11 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
 
         currentScreen = AppScreen.ActiveSession(sessionConfig)
 
+        // Resolve the resumed phase by id (not just index into activePhases) so that if the
+        // size was deleted while the session was interrupted, resume fails cleanly instead of
+        // silently landing on whatever size now happens to sit at that index.
         val phase = activePhases.getOrNull(currentPhaseIndex)
+            ?.takeIf { it.id == snapshot.currentPhaseSizeId }
             ?: run { discardInterruptedSession(); return }
 
         when (snapshot.stateType) {
@@ -959,7 +1027,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
                 earlyFinishSecondsRemaining = null
                 currentPhaseDepth = null
                 if (sessionConfig.recordDepth) {
-                    currentDepthInput = storage.getLastDepthForSize(phase)
+                    currentDepthInput = storage.getLastDepthForSize(phase.id)
                 }
             }
 
@@ -969,7 +1037,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
                     snapshot.sessionEndWallClock else System.currentTimeMillis()
                 sessionState = SessionState.DepthInput(phase)
                 if (sessionConfig.recordDepth) {
-                    currentDepthInput = storage.getLastDepthForSize(phase)
+                    currentDepthInput = storage.getLastDepthForSize(phase.id)
                 }
             }
 
