@@ -60,6 +60,10 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     var themeMode by mutableStateOf(storage.loadThemeMode())
     var countdownEnabled by mutableStateOf(storage.loadCountdownEnabled())
     var countdownIntervalMinutes by mutableIntStateOf(storage.loadCountdownIntervalMinutes())
+    var reminderEnabled by mutableStateOf(storage.loadReminderEnabled())
+        private set
+    var reminderMinutesBefore by mutableIntStateOf(storage.loadReminderMinutesBefore())
+        private set
     var customPhaseTimes by mutableStateOf(storage.loadCustomPhaseTimes())
         private set
     var day0Date by mutableStateOf(storage.loadDay0Date())
@@ -210,6 +214,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         storage.saveOrUpdateSession(session)
         sessions = storage.loadSessions()
         stats = recomputeStats()
+        refreshWidgetAndReminder()
     }
 
     private val savedFilter = storage.loadStatsFilter()
@@ -344,18 +349,36 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     fun updateCountdownEnabled(enabled: Boolean) {
         countdownEnabled = enabled
         storage.saveCountdownEnabled(enabled)
-        refreshWidget()
+        refreshWidgetAndReminder()
     }
 
     fun updateCountdownIntervalMinutes(minutes: Int) {
         countdownIntervalMinutes = minutes
         storage.saveCountdownIntervalMinutes(minutes)
-        refreshWidget()
+        refreshWidgetAndReminder()
     }
 
-    /** The home-screen widget reads from storage, so redraw it after anything it shows changes. */
-    private fun refreshWidget() {
+    fun updateReminderEnabled(enabled: Boolean) {
+        reminderEnabled = enabled
+        storage.saveReminderEnabled(enabled)
+        SessionReminder.reschedule(getApplication())
+    }
+
+    /** Minutes before a planned session that the reminder fires; clamped to 1..600. */
+    fun updateReminderMinutesBefore(minutes: Int) {
+        val clamped = minutes.coerceIn(MIN_REMINDER_MINUTES, MAX_REMINDER_MINUTES)
+        reminderMinutesBefore = clamped
+        storage.saveReminderMinutesBefore(clamped)
+        SessionReminder.reschedule(getApplication())
+    }
+
+    /**
+     * The widget and the reminder both read from storage and both depend on the last session,
+     * so refresh them together after anything that moves either.
+     */
+    private fun refreshWidgetAndReminder() {
         SessionWidget.refresh(getApplication())
+        SessionReminder.reschedule(getApplication())
     }
 
     /** Sets the custom (rightmost) duration offered for [size]; clamped to 1..99 minutes. */
@@ -367,7 +390,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     fun updateDay0Date(epochMillis: Long?) {
         day0Date = epochMillis
         storage.saveDay0Date(epochMillis)
-        refreshWidget()
+        refreshWidgetAndReminder()
     }
 
     fun addMilestone(milestone: Milestone) {
@@ -452,7 +475,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         startTTDForCurrentPhase()
         currentScreen = AppScreen.ActiveSession(sessionConfig)
         saveSessionSnapshot()
-        refreshWidget()
+        refreshWidgetAndReminder()
     }
 
     private fun startTTDForCurrentPhase() {
@@ -845,7 +868,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
 
         currentScreen = AppScreen.Home
         sessionState = SessionState.Idle
-        refreshWidget()
+        refreshWidgetAndReminder()
     }
 
     // ============================================================================
@@ -856,12 +879,14 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         storage.deleteSession(sessionId)
         sessions = storage.loadSessions()
         stats = recomputeStats()
+        refreshWidgetAndReminder()
     }
 
     fun deleteAllSessions() {
         storage.deleteAllSessions()
         sessions = storage.loadSessions()
         stats = recomputeStats()
+        refreshWidgetAndReminder()
     }
 
     // ============================================================================
@@ -889,6 +914,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         val result = storage.importSessionsFromUri(uri)
         sessions = storage.loadSessions()
         stats = recomputeStats()
+        refreshWidgetAndReminder()
         return result
     }
 
@@ -896,6 +922,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         val result = storage.importFromButterflyUri(uri)
         sessions = storage.loadSessions()
         stats = recomputeStats()
+        refreshWidgetAndReminder()
         return result
     }
 
@@ -906,7 +933,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         stopService()
         resetSessionState()
         currentScreen = AppScreen.Home
-        refreshWidget()
+        refreshWidgetAndReminder()
     }
 
     fun saveAndCancelSession() {
@@ -951,7 +978,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         stopService()
         resetSessionState()
         currentScreen = AppScreen.Home
-        refreshWidget()
+        refreshWidgetAndReminder()
     }
 
     private fun stopService() {

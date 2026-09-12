@@ -194,6 +194,23 @@ class SessionStorage(private val context: Context) {
         return prefs.getInt("countdown_interval_minutes", 8 * 60)
     }
 
+    fun saveReminderEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean("reminder_enabled", enabled).apply()
+    }
+
+    fun loadReminderEnabled(): Boolean {
+        return prefs.getBoolean("reminder_enabled", false)
+    }
+
+    fun saveReminderMinutesBefore(minutes: Int) {
+        prefs.edit().putInt("reminder_minutes_before", minutes).apply()
+    }
+
+    fun loadReminderMinutesBefore(): Int {
+        return prefs.getInt("reminder_minutes_before", DEFAULT_REMINDER_MINUTES)
+            .coerceIn(MIN_REMINDER_MINUTES, MAX_REMINDER_MINUTES)
+    }
+
     fun saveMilestones(milestones: List<Milestone>) {
         prefs.edit().putString("milestones", gson.toJson(milestones)).apply()
     }

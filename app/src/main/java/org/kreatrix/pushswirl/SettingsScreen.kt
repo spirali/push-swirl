@@ -356,6 +356,57 @@ fun SettingsScreen(viewModel: SessionViewModel) {
                                     Text("Set")
                                 }
                             }
+
+                            Spacer(modifier = Modifier.height(20.dp))
+                            HorizontalDivider()
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Reminder notification", fontSize = 16.sp)
+                                    Text(
+                                        "Notify you shortly before the next session is due",
+                                        fontSize = 13.sp,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                    )
+                                }
+                                Checkbox(
+                                    checked = viewModel.reminderEnabled,
+                                    onCheckedChange = { viewModel.updateReminderEnabled(it) }
+                                )
+                            }
+
+                            if (viewModel.reminderEnabled) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                var reminderText by remember {
+                                    mutableStateOf(viewModel.reminderMinutesBefore.toString())
+                                }
+                                val reminderMinutes = reminderText.toIntOrNull()
+                                OutlinedTextField(
+                                    value = reminderText,
+                                    onValueChange = { input ->
+                                        reminderText = input.filter { c -> c.isDigit() }.take(3)
+                                        // Out-of-range input is flagged but not saved.
+                                        reminderText.toIntOrNull()
+                                            ?.takeIf { it in MIN_REMINDER_MINUTES..MAX_REMINDER_MINUTES }
+                                            ?.let { viewModel.updateReminderMinutesBefore(it) }
+                                    },
+                                    label = { Text("Notify before") },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    singleLine = true,
+                                    isError = reminderMinutes == null ||
+                                        reminderMinutes !in MIN_REMINDER_MINUTES..MAX_REMINDER_MINUTES,
+                                    supportingText = {
+                                        Text("$MIN_REMINDER_MINUTES-$MAX_REMINDER_MINUTES minutes before the session")
+                                    },
+                                    trailingIcon = { Text("min", fontSize = 14.sp) },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
                         }
                     }
 

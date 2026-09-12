@@ -55,6 +55,11 @@ data class CustomPhaseTimes(
     }
 }
 
+/** How long before a planned session the optional reminder notification fires. */
+const val DEFAULT_REMINDER_MINUTES = 15
+const val MIN_REMINDER_MINUTES = 1
+const val MAX_REMINDER_MINUTES = 600
+
 enum class DilationAction {
     PUSH, SWIRL
 }
