@@ -635,6 +635,25 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         ))
     }
 
+    /**
+     * Planned length of the dilation phase in minutes, including any time added mid-phase.
+     * Falls back to the configured duration before the phase clock has been set up.
+     */
+    private fun currentDilationMinutes(): Int =
+        if (dilationTotalSeconds > 0) dilationTotalSeconds / 60
+        else sessionConfig.getDuration(activePhases[currentPhaseIndex])
+
+    /**
+     * Extends the running dilation phase by [minutes]. The added time counts towards the
+     * phase's planned length, so the recorded session reflects the longer phase.
+     */
+    fun addDilationTime(minutes: Int) {
+        if (sessionState !is SessionState.Dilation || minutes <= 0) return
+        dilationTotalSeconds += minutes * 60
+        updateTimeDisplays()
+        saveSessionSnapshot()
+    }
+
     // ============================================================================
     // EARLY FINISH - ends dilation phase before timer completes
     // ============================================================================
@@ -662,11 +681,10 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         // If depth recording is enabled, show depth input before advancing
         if (sessionConfig.recordDepth) {
             val phase = activePhases[currentPhaseIndex]
-            val duration = sessionConfig.getDuration(phase)
             saveSessionCheckpoint(PhaseData(
                 size = phase,
                 ttdSeconds = lastTtdSeconds,
-                dilationMinutes = duration,
+                dilationMinutes = currentDilationMinutes(),
                 actionTime = sessionConfig.actionTime,
                 pauseSeconds = sessionConfig.pauseSeconds.takeIf { it > 0 },
                 earlyFinishSecondsRemaining = earlyFinishSecondsRemaining
@@ -680,12 +698,11 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     private fun saveCurrentPhaseAndAdvance() {
         // Save completed phase (with early finish info and depth if applicable)
         val phase = activePhases[currentPhaseIndex]
-        val duration = sessionConfig.getDuration(phase)
         completedPhases.add(
             PhaseData(
                 size = phase,
                 ttdSeconds = lastTtdSeconds,
-                dilationMinutes = duration,
+                dilationMinutes = currentDilationMinutes(),
                 actionTime = sessionConfig.actionTime,
                 pauseSeconds = sessionConfig.pauseSeconds.takeIf { it > 0 },
                 earlyFinishSecondsRemaining = earlyFinishSecondsRemaining,
@@ -819,7 +836,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
                 PhaseData(
                     size = phase,
                     ttdSeconds = lastTtdSeconds,
-                    dilationMinutes = sessionConfig.getDuration(phase),
+                    dilationMinutes = currentDilationMinutes(),
                     actionTime = sessionConfig.actionTime,
                     pauseSeconds = sessionConfig.pauseSeconds.takeIf { it > 0 },
                     earlyFinishSecondsRemaining = calculateDilationRemainingSeconds(),
@@ -832,7 +849,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
                 PhaseData(
                     size = phase,
                     ttdSeconds = lastTtdSeconds,
-                    dilationMinutes = sessionConfig.getDuration(phase),
+                    dilationMinutes = currentDilationMinutes(),
                     actionTime = sessionConfig.actionTime,
                     pauseSeconds = sessionConfig.pauseSeconds.takeIf { it > 0 },
                     earlyFinishSecondsRemaining = earlyFinishSecondsRemaining,

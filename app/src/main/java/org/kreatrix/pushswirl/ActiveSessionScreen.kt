@@ -26,7 +26,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -484,6 +487,7 @@ fun DepthInputView(viewModel: SessionViewModel, phase: PhaseSize, isWideScreen: 
 @Composable
 fun DilationView(viewModel: SessionViewModel, phase: PhaseSize, action: DilationAction, isWideScreen: Boolean = false) {
     var showEarlyFinishDialog by remember { mutableStateOf(false) }
+    var showAddTimeDialog by remember { mutableStateOf(false) }
     var showSoundDialog by remember { mutableStateOf(false) }
     var showVibrationDialog by remember { mutableStateOf(false) }
 
@@ -537,7 +541,8 @@ fun DilationView(viewModel: SessionViewModel, phase: PhaseSize, action: Dilation
                     viewModel = viewModel,
                     onShowVibrationDialog = { showVibrationDialog = true },
                     onShowSoundDialog = { showSoundDialog = true },
-                    onShowEarlyFinishDialog = { showEarlyFinishDialog = true }
+                    onShowEarlyFinishDialog = { showEarlyFinishDialog = true },
+                    onShowAddTimeDialog = { showAddTimeDialog = true }
                 )
             }
         }
@@ -579,7 +584,8 @@ fun DilationView(viewModel: SessionViewModel, phase: PhaseSize, action: Dilation
                 viewModel = viewModel,
                 onShowVibrationDialog = { showVibrationDialog = true },
                 onShowSoundDialog = { showSoundDialog = true },
-                onShowEarlyFinishDialog = { showEarlyFinishDialog = true }
+                onShowEarlyFinishDialog = { showEarlyFinishDialog = true },
+                onShowAddTimeDialog = { showAddTimeDialog = true }
             )
         }
     }
@@ -607,6 +613,70 @@ fun DilationView(viewModel: SessionViewModel, phase: PhaseSize, action: Dilation
             dismissButton = {
                 TextButton(onClick = { showEarlyFinishDialog = false }) {
                     Text("Continue")
+                }
+            }
+        )
+    }
+
+    if (showAddTimeDialog) {
+        // Hold the dilation clock while the dialog is open, then let it run again on close.
+        // A phase the user had already paused stays paused.
+        val holdsClock = remember { !viewModel.dilationPaused }
+        DisposableEffect(Unit) {
+            if (holdsClock) viewModel.toggleDilationPause()
+            onDispose {
+                if (holdsClock && viewModel.dilationPaused) viewModel.toggleDilationPause()
+            }
+        }
+
+        AlertDialog(
+            onDismissRequest = { showAddTimeDialog = false },
+            title = { Text("Add Time") },
+            text = {
+                // The dialog stays open so several increments can be added in a row;
+                // each tap takes effect immediately and the remaining time updates.
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        buildAnnotatedString {
+                            append("Extend this dilation phase. ")
+                            withStyle(
+                                SpanStyle(
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            ) {
+                                append(formatTime(viewModel.dilationRemainingSeconds.toLong()))
+                            }
+                            append(" remaining.")
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(20.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Button(
+                            onClick = { viewModel.addDilationTime(1) },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(64.dp)
+                        ) {
+                            Text("+1 min", fontSize = 20.sp)
+                        }
+                        Button(
+                            onClick = { viewModel.addDilationTime(5) },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(64.dp)
+                        ) {
+                            Text("+5 min", fontSize = 20.sp)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showAddTimeDialog = false }) {
+                    Text("Close")
                 }
             }
         )
@@ -711,7 +781,8 @@ private fun DilationControls(
     viewModel: SessionViewModel,
     onShowVibrationDialog: () -> Unit,
     onShowSoundDialog: () -> Unit,
-    onShowEarlyFinishDialog: () -> Unit
+    onShowEarlyFinishDialog: () -> Unit,
+    onShowAddTimeDialog: () -> Unit
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -766,16 +837,32 @@ private fun DilationControls(
         )
     }
     Spacer(modifier = Modifier.height(12.dp))
-    Button(
-        onClick = onShowEarlyFinishDialog,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(56.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.tertiary
-        )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text("Early Finish", fontSize = 18.sp)
+        Button(
+            onClick = onShowAddTimeDialog,
+            modifier = Modifier
+                .weight(1f)
+                .height(44.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.secondary
+            )
+        ) {
+            Text("Add time", fontSize = 15.sp)
+        }
+        Button(
+            onClick = onShowEarlyFinishDialog,
+            modifier = Modifier
+                .weight(1f)
+                .height(44.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.tertiary
+            )
+        ) {
+            Text("Early Finish", fontSize = 15.sp)
+        }
     }
 }
 

@@ -649,7 +649,7 @@ private fun CustomTimesTabContent(viewModel: SessionViewModel) {
                 supportingText = {
                     Text("$MIN_CUSTOM_PHASE_MINUTES-$MAX_CUSTOM_PHASE_MINUTES minutes")
                 },
-                trailingIcon = { Text("m", fontSize = 14.sp) },
+                trailingIcon = { Text("min", fontSize = 14.sp) },
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(8.dp))

@@ -1,5 +1,6 @@
 package org.kreatrix.pushswirl
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.FlowRow
@@ -19,17 +20,25 @@ import androidx.compose.ui.unit.sp
 fun NewSessionScreen(viewModel: SessionViewModel) {
     BackHandler { viewModel.navigateTo(AppScreen.Home) }
 
-    var small by remember { mutableStateOf(viewModel.sessionConfig.small) }
-    var medium by remember { mutableStateOf(viewModel.sessionConfig.medium) }
-    var large by remember { mutableStateOf(viewModel.sessionConfig.large) }
-    var xl by remember { mutableStateOf(viewModel.sessionConfig.xl) }
+    val custom = viewModel.customPhaseTimes
+    var small by remember { mutableStateOf(resolvePhaseMinutes(viewModel.sessionConfig.small, custom.small)) }
+    var medium by remember { mutableStateOf(resolvePhaseMinutes(viewModel.sessionConfig.medium, custom.medium)) }
+    var large by remember { mutableStateOf(resolvePhaseMinutes(viewModel.sessionConfig.large, custom.large)) }
+    var xl by remember { mutableStateOf(resolvePhaseMinutes(viewModel.sessionConfig.xl, custom.xl)) }
     var actionTime by remember { mutableStateOf(viewModel.sessionConfig.actionTime) }
     var pauseSeconds by remember { mutableStateOf(viewModel.sessionConfig.pauseSeconds) }
     var recordDepth by remember { mutableStateOf(viewModel.sessionConfig.recordDepth) }
     var addTagsNoteAtEnd by remember { mutableStateOf(viewModel.sessionConfig.addTagsNoteAtEnd) }
     var blindedTtdTimer by remember { mutableStateOf(viewModel.sessionConfig.blindedTtdTimer) }
     var selectedTab by remember { mutableStateOf(0) }
-    val custom = viewModel.customPhaseTimes
+
+    // A phase sitting on the custom slot follows the custom time when it is edited in Settings.
+    LaunchedEffect(custom) {
+        small = resolvePhaseMinutes(small, custom.small)
+        medium = resolvePhaseMinutes(medium, custom.medium)
+        large = resolvePhaseMinutes(large, custom.large)
+        xl = resolvePhaseMinutes(xl, custom.xl)
+    }
 
     Scaffold(
         topBar = {
@@ -323,11 +332,20 @@ fun NewSessionScreen(viewModel: SessionViewModel) {
     }
 }
 
+/** Durations every phase offers; anything else means "whatever the custom time currently is". */
+private val FIXED_PHASE_OPTIONS = listOf(PHASE_SKIPPED, 5, 10, 15)
+
+/**
+ * Resolves a stored duration against the current custom time for its phase: a fixed option is
+ * kept as-is, anything else is treated as the custom slot and follows the custom time. Keeps
+ * a custom selection selected (rather than adding a chip) when Settings -> Custom times changes.
+ */
+private fun resolvePhaseMinutes(stored: Int, customMinutes: Int): Int =
+    if (stored in FIXED_PHASE_OPTIONS) stored else customMinutes
+
 /**
  * Duration chips for one phase: skip, the fixed 5/10/15 options and the user's custom time
- * for this phase (Settings -> Custom times). A previously stored duration that matches none
- * of them (e.g. from a session recorded before the custom time was changed) is offered too,
- * so the current selection is always visible.
+ * for this phase (Settings -> Custom times). The custom chip is outlined to set it apart.
  */
 @Composable
 fun PhaseSelector(
@@ -336,8 +354,8 @@ fun PhaseSelector(
     selected: Int,
     onSelect: (Int) -> Unit
 ) {
-    val options = remember(customMinutes, selected) {
-        (listOf(PHASE_SKIPPED, 5, 10, 15, customMinutes) + selected).distinct().sorted()
+    val options = remember(customMinutes) {
+        (FIXED_PHASE_OPTIONS + customMinutes).distinct()
     }
     Column {
         Text(
@@ -354,15 +372,22 @@ fun PhaseSelector(
         ) {
             options.forEach { minutes ->
                 val chipLabel = if (minutes == PHASE_SKIPPED) "X" else "${minutes}m"
+                val isSelected = selected == minutes
+                val isCustom = minutes == customMinutes
 
                 FilterChip(
-                    selected = selected == minutes,
+                    selected = isSelected,
                     onClick = { onSelect(minutes) },
                     label = { Text(chipLabel) },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = MaterialTheme.colorScheme.primary,
                         selectedLabelColor = MaterialTheme.colorScheme.onPrimary
-                    )
+                    ),
+                    border = if (isCustom) {
+                        BorderStroke(2.dp, MaterialTheme.colorScheme.tertiary)
+                    } else {
+                        FilterChipDefaults.filterChipBorder(enabled = true, selected = isSelected)
+                    }
                 )
             }
         }

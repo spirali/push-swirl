@@ -3,6 +3,7 @@
 ## v1.16
 
 * Custom phase times: set your own duration per phase size (Settings → Custom times)
+* Add time: extend the running dilation phase by +1 or +5 minutes
 
 ## v1.15
 
