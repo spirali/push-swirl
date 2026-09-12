@@ -2,6 +2,7 @@
 
 ## v1.16
 
+* Home-screen widget
 * Custom phase times: set your own duration per phase size (Settings → Custom times)
 * Add time: extend the running dilation phase by +1 or +5 minutes
 * Fixed "pause" button in notification area

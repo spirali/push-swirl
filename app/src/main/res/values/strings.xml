@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">PushSwirl</string>
+    <string name="widget_running">Running</string>
+    <string name="widget_label">Push &amp; Swirl status</string>
+    <string name="widget_description">Day number, when your next session is due and when the last one was.</string>
 </resources>

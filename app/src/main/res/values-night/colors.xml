@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Widget palette; mirrors DarkColorScheme in Theme.kt. -->
+    <color name="widget_background">#FF2A1F26</color>
+    <color name="widget_accent">#FFFF94C2</color>
+    <color name="widget_text">#FFEDE0E7</color>
+    <color name="widget_text_muted">#99EDE0E7</color>
+    <color name="widget_overdue">#FFFF8A80</color>
+</resources>

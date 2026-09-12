@@ -344,11 +344,18 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     fun updateCountdownEnabled(enabled: Boolean) {
         countdownEnabled = enabled
         storage.saveCountdownEnabled(enabled)
+        refreshWidget()
     }
 
     fun updateCountdownIntervalMinutes(minutes: Int) {
         countdownIntervalMinutes = minutes
         storage.saveCountdownIntervalMinutes(minutes)
+        refreshWidget()
+    }
+
+    /** The home-screen widget reads from storage, so redraw it after anything it shows changes. */
+    private fun refreshWidget() {
+        SessionWidget.refresh(getApplication())
     }
 
     /** Sets the custom (rightmost) duration offered for [size]; clamped to 1..99 minutes. */
@@ -360,6 +367,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     fun updateDay0Date(epochMillis: Long?) {
         day0Date = epochMillis
         storage.saveDay0Date(epochMillis)
+        refreshWidget()
     }
 
     fun addMilestone(milestone: Milestone) {
@@ -444,6 +452,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         startTTDForCurrentPhase()
         currentScreen = AppScreen.ActiveSession(sessionConfig)
         saveSessionSnapshot()
+        refreshWidget()
     }
 
     private fun startTTDForCurrentPhase() {
@@ -836,6 +845,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
 
         currentScreen = AppScreen.Home
         sessionState = SessionState.Idle
+        refreshWidget()
     }
 
     // ============================================================================
@@ -896,6 +906,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         stopService()
         resetSessionState()
         currentScreen = AppScreen.Home
+        refreshWidget()
     }
 
     fun saveAndCancelSession() {
@@ -940,6 +951,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         stopService()
         resetSessionState()
         currentScreen = AppScreen.Home
+        refreshWidget()
     }
 
     private fun stopService() {

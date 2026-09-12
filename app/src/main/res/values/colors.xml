@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Widget palette; mirrors LightColorScheme in Theme.kt. -->
+    <color name="widget_background">#FFFFF5F7</color>
+    <color name="widget_accent">#FFE0619A</color>
+    <color name="widget_text">#FF4A4A4A</color>
+    <color name="widget_text_muted">#994A4A4A</color>
+    <color name="widget_overdue">#FFC62828</color>
+</resources>
