@@ -132,6 +132,14 @@ class SessionStorage(private val context: Context) {
         return prefs.getBoolean("wake_lock_enabled", true)
     }
 
+    fun savePipEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean("pip_enabled", enabled).apply()
+    }
+
+    fun loadPipEnabled(): Boolean {
+        return prefs.getBoolean("pip_enabled", true)
+    }
+
     fun saveCustomPhaseTimes(times: CustomPhaseTimes) {
         prefs.edit()
             .putInt("custom_phase_time_small", times.small)

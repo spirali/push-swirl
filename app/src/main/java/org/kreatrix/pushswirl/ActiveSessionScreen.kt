@@ -791,6 +791,7 @@ private fun DilationControls(
         Button(
             onClick = onShowVibrationDialog,
             modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = if (viewModel.notificationSettings.vibrationEnabled)
                     MaterialTheme.colorScheme.primary
@@ -802,11 +803,12 @@ private fun DilationControls(
                     MaterialTheme.colorScheme.onSurfaceVariant
             )
         ) {
-            Text("Vibration")
+            Text("Vibration", fontSize = 13.sp, maxLines = 1)
         }
         Button(
             onClick = onShowSoundDialog,
             modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = if (viewModel.notificationSettings.soundEnabled)
                     MaterialTheme.colorScheme.primary
@@ -818,7 +820,24 @@ private fun DilationControls(
                     MaterialTheme.colorScheme.onSurfaceVariant
             )
         ) {
-            Text("Sound")
+            Text("Sound", fontSize = 13.sp, maxLines = 1)
+        }
+        Button(
+            onClick = { viewModel.updatePipEnabled(!viewModel.pipEnabled) },
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if (viewModel.pipEnabled)
+                    MaterialTheme.colorScheme.primary
+                else
+                    MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = if (viewModel.pipEnabled)
+                    MaterialTheme.colorScheme.onPrimary
+                else
+                    MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        ) {
+            Text("PiP", fontSize = 13.sp, maxLines = 1)
         }
     }
     Spacer(modifier = Modifier.height(16.dp))
@@ -1204,4 +1223,117 @@ private fun formatTime(seconds: Long): String {
     val mins = seconds / 60
     val secs = seconds % 60
     return String.format("%d:%02d", mins, secs)
+}
+
+/**
+ * Compact layout for the picture-in-picture window: the current phase and its clocks, nothing
+ * else. PiP content is not interactive, so the controls stay behind in the full-size screen.
+ */
+@Composable
+fun PipSessionView(viewModel: SessionViewModel) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            when (val state = viewModel.sessionState) {
+                is SessionState.TTD -> {
+                    PipHeading("${state.phase.name} · TTD")
+                    PipClock(
+                        if (viewModel.sessionConfig.blindedTtdTimer) "••:••"
+                        else formatTime(viewModel.ttdSeconds)
+                    )
+                    PipCaption(if (viewModel.ttdRunning) "Running" else "Paused")
+                }
+
+                is SessionState.Dilation -> {
+                    val what = when {
+                        viewModel.dilationPaused -> "Paused"
+                        viewModel.inActionPause -> "Break"
+                        state.action == DilationAction.PUSH -> "Push"
+                        else -> "Swirl"
+                    }
+                    PipHeading("${state.phase.name} · $what")
+                    if (viewModel.sessionConfig.actionTime == 0) {
+                        // Static: there is no push/swirl clock, so the phase clock is all there is.
+                        PipClock(formatTime(viewModel.dilationRemainingSeconds.toLong()))
+                        PipCaption("Remaining")
+                    } else {
+                        // Same hierarchy as the session screen: the phase (push/swirl or break)
+                        // clock leads, with the phase's total remaining beneath it.
+                        PipClock(
+                            formatTime(
+                                (if (viewModel.inActionPause) viewModel.actionPauseRemainingSeconds
+                                else viewModel.actionRemainingSeconds).toLong()
+                            )
+                        )
+                        PipSubClock(formatTime(viewModel.dilationRemainingSeconds.toLong()))
+                    }
+                }
+
+                is SessionState.DepthInput -> {
+                    PipHeading("${state.phase.name} · Depth")
+                    PipClock(formatTime(viewModel.dilationRemainingSeconds.toLong()))
+                    PipCaption("Waiting for depth")
+                }
+
+                SessionState.TagNoteInput -> {
+                    PipHeading("Session finished")
+                    PipCaption("Waiting for tags / note")
+                }
+
+                SessionState.Idle -> {
+                    PipHeading("Push & Swirl")
+                    PipCaption("Session finished")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PipHeading(text: String) {
+    Text(
+        text = text,
+        fontSize = 14.sp,
+        fontWeight = FontWeight.Medium,
+        color = MaterialTheme.colorScheme.primary,
+        maxLines = 1
+    )
+}
+
+@Composable
+private fun PipClock(text: String) {
+    Text(
+        text = text,
+        fontSize = 40.sp,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.onBackground,
+        maxLines = 1
+    )
+}
+
+/** Secondary clock: smaller than [PipClock], for the phase's total remaining time. */
+@Composable
+private fun PipSubClock(text: String) {
+    Text(
+        text = text,
+        fontSize = 18.sp,
+        fontWeight = FontWeight.Medium,
+        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+        maxLines = 1
+    )
+}
+
+@Composable
+private fun PipCaption(text: String) {
+    Text(
+        text = text,
+        fontSize = 12.sp,
+        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+        maxLines = 1
+    )
 }

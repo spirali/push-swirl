@@ -57,6 +57,9 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     // App settings
     var keepScreenOn by mutableStateOf(storage.loadKeepScreenOn())
     var wakeLockEnabled by mutableStateOf(storage.loadWakeLockEnabled())
+    /** Whether leaving the app during a session shrinks it into a picture-in-picture window. */
+    var pipEnabled by mutableStateOf(storage.loadPipEnabled())
+        private set
     var themeMode by mutableStateOf(storage.loadThemeMode())
     var countdownEnabled by mutableStateOf(storage.loadCountdownEnabled())
     var countdownIntervalMinutes by mutableIntStateOf(storage.loadCountdownIntervalMinutes())
@@ -317,6 +320,10 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     // NAVIGATION & CONFIG
     // ============================================================================
 
+    /** True while a session is actually on the clock, i.e. worth showing in a PiP window. */
+    val isSessionActive: Boolean
+        get() = sessionState !is SessionState.Idle
+
     fun navigateTo(screen: AppScreen) {
         currentScreen = screen
     }
@@ -339,6 +346,11 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     fun updateWakeLockEnabled(enabled: Boolean) {
         wakeLockEnabled = enabled
         storage.saveWakeLockEnabled(enabled)
+    }
+
+    fun updatePipEnabled(enabled: Boolean) {
+        pipEnabled = enabled
+        storage.savePipEnabled(enabled)
     }
 
     fun updateThemeMode(mode: ThemeMode) {
