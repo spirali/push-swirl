@@ -4,6 +4,8 @@
 
 * Custom phase times: set your own duration per phase size (Settings → Custom times)
 * Add time: extend the running dilation phase by +1 or +5 minutes
+* Fixed "pause" button in notification area
+* Added "Depth reached" / "Early exit" buttons in the notification area
 
 ## v1.15
 

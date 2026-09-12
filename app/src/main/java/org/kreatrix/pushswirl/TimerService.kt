@@ -18,11 +18,15 @@ enum class NotificationEvent {
     PAUSE_BEGIN
 }
 
+/** Which timer the session is on; decides what the ongoing notification shows and offers. */
+enum class TimerMode { IDLE, TTD, DILATION }
+
 class TimerService : Service() {
     companion object {
         const val CHANNEL_ID = "pushswirl_timer"
-        const val ACTION_PAUSE = "org.kreatrix.pushswirl.PAUSE"
-        const val ACTION_RESUME = "org.kreatrix.pushswirl.RESUME"
+        const val ACTION_TOGGLE_PAUSE = "org.kreatrix.pushswirl.TOGGLE_PAUSE"
+        const val ACTION_DEPTH_REACHED = "org.kreatrix.pushswirl.DEPTH_REACHED"
+        const val ACTION_EARLY_EXIT = "org.kreatrix.pushswirl.EARLY_EXIT"
 
         var isRunning = false
         var currentPhase: PhaseSize? = null
@@ -30,8 +34,20 @@ class TimerService : Service() {
         var remainingSeconds = 0
         var actionRemainingSeconds = 0
         var isPaused = false
+        var mode = TimerMode.IDLE
+        /** Formatted TTD elapsed time, or null while the TTD timer is blinded. */
+        var ttdLabel: String? = null
+        /** Whether the TTD timer has started, i.e. whether "Depth reached" applies yet. */
+        var ttdCanFinish = false
     }
 
+    // Set by the ViewModel while it is bound, so the notification's buttons drive the session
+    // itself rather than a copy of its state. Null when nothing is bound.
+    var onPauseToggle: (() -> Boolean)? = null
+    var onDepthReached: (() -> Unit)? = null
+    var onEarlyExit: (() -> Unit)? = null
+
+    private var lastNotificationKey: String? = null
     private val binder = TimerBinder()
     private var wakeLock: PowerManager.WakeLock? = null
     private var vibrator: Vibrator? = null
@@ -70,14 +86,16 @@ class TimerService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_PAUSE -> {
-                isPaused = true
-                updateNotification()
+            // Let the session do the pausing so its clock and this notification agree;
+            // with nothing bound there is no clock to stop, so just reflect the new state.
+            ACTION_TOGGLE_PAUSE -> {
+                if (onPauseToggle?.invoke() != true) {
+                    isPaused = !isPaused
+                    updateNotification()
+                }
             }
-            ACTION_RESUME -> {
-                isPaused = false
-                updateNotification()
-            }
+            ACTION_DEPTH_REACHED -> onDepthReached?.invoke()
+            ACTION_EARLY_EXIT -> onEarlyExit?.invoke()
             else -> {
                 soundMode = intent?.getStringExtra("soundMode")?.let { SoundMode.valueOf(it) } ?: SoundMode.SYSTEM
                 vibrationMode = intent?.getStringExtra("vibrationMode")?.let { VibrationMode.valueOf(it) } ?: VibrationMode.SYSTEM
@@ -90,6 +108,7 @@ class TimerService : Service() {
                     wakeLock?.acquire()
                 }
                 startForeground(1, createNotification())
+                lastNotificationKey = notificationKey()
             }
         }
         return START_STICKY
@@ -137,24 +156,9 @@ class TimerService : Service() {
             this, 0, openIntent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
-        val pauseIntent = Intent(this, TimerService::class.java).apply {
-            action = if (isPaused) ACTION_RESUME else ACTION_PAUSE
-        }
-        val pausePendingIntent = PendingIntent.getService(
-            this, 1, pauseIntent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
-
-        val text = when {
-            !isRunning -> "Timer stopped"
-            isPaused -> "Timer paused"
-            currentPhase != null && currentAction != null ->
-                "${currentPhase?.name} - ${currentAction?.name}: ${formatTime(actionRemainingSeconds)}"
-            else -> "Timer running"
-        }
-
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("PushSwirl")
-            .setContentText(text)
+            .setContentText(notificationText())
             .setSmallIcon(R.drawable.ic_notification)
             .setLargeIcon(largeIcon)
             .setOngoing(true)
@@ -162,21 +166,105 @@ class TimerService : Service() {
             .addAction(
                 android.R.drawable.ic_media_pause,
                 if (isPaused) "Resume" else "Pause",
-                pausePendingIntent
+                servicePendingIntent(1, ACTION_TOGGLE_PAUSE)
             )
-            .build()
+
+        // The second action mirrors the button the active-session screen offers right now.
+        when (mode) {
+            TimerMode.TTD -> if (ttdCanFinish) builder.addAction(
+                android.R.drawable.ic_menu_save,
+                "Depth reached",
+                servicePendingIntent(2, ACTION_DEPTH_REACHED)
+            )
+            TimerMode.DILATION -> builder.addAction(
+                android.R.drawable.ic_media_next,
+                "Early exit",
+                servicePendingIntent(3, ACTION_EARLY_EXIT)
+            )
+            TimerMode.IDLE -> {}
+        }
+
+        return builder.build()
     }
 
+    private fun servicePendingIntent(requestCode: Int, intentAction: String): PendingIntent {
+        val intent = Intent(this, TimerService::class.java).apply { action = intentAction }
+        return PendingIntent.getService(
+            this, requestCode, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+    }
+
+    private fun notificationText(): String {
+        val body = when {
+            !isRunning -> "Timer stopped"
+            mode == TimerMode.TTD -> ttdLabel?.let { "TTD timer: $it" } ?: "TTD timer"
+            currentPhase != null && currentAction != null ->
+                "${currentPhase?.name} - ${currentAction?.name}: ${formatTime(actionRemainingSeconds)}"
+            else -> "Timer running"
+        }
+        return if (isRunning && isPaused) "$body (paused)" else body
+    }
+
+    /** Everything the notification renders, so identical re-posts can be skipped. */
+    private fun notificationKey(): String =
+        "$isRunning|$isPaused|$mode|$ttdCanFinish|${notificationText()}"
+
+    /**
+     * Re-posts the notification only when something visible changed. The timers push updates
+     * five times a second, but the notification shows whole seconds; re-posting it that often
+     * makes its action buttons drop taps, so identical updates are skipped.
+     */
     private fun updateNotification() {
+        val key = notificationKey()
+        if (key == lastNotificationKey) return
+        lastNotificationKey = key
         val manager = getSystemService(NotificationManager::class.java)
         manager.notify(1, createNotification())
     }
 
-    fun updateTimerState(phase: PhaseSize?, action: DilationAction?, remaining: Int, actionRemaining: Int) {
+    /**
+     * Reflects the dilation timer. [paused] is passed on every update rather than tracked
+     * separately, so a pause left over from the previous phase cannot linger here.
+     */
+    fun updateTimerState(
+        phase: PhaseSize?,
+        action: DilationAction?,
+        remaining: Int,
+        actionRemaining: Int,
+        paused: Boolean
+    ) {
+        mode = TimerMode.DILATION
         currentPhase = phase
         currentAction = action
         remainingSeconds = remaining
         actionRemainingSeconds = actionRemaining
+        isPaused = paused
+        updateNotification()
+    }
+
+    /** Reflects the TTD timer; [elapsedLabel] is null while the TTD timer is blinded. */
+    fun updateTtdState(phase: PhaseSize?, elapsedLabel: String?, running: Boolean, canFinish: Boolean) {
+        mode = TimerMode.TTD
+        currentPhase = phase
+        currentAction = null
+        ttdLabel = elapsedLabel
+        ttdCanFinish = canFinish
+        isPaused = !running
+        updateNotification()
+    }
+
+    /** Drops the phase-specific action while the session is between timers (depth/tag input). */
+    fun clearPhaseActions() {
+        mode = TimerMode.IDLE
+        currentAction = null
+        ttdLabel = null
+        isPaused = false
+        updateNotification()
+    }
+
+    /** Reflects a dilation pause/resume driven from the app. */
+    fun setPaused(paused: Boolean) {
+        isPaused = paused
         updateNotification()
     }
 
@@ -279,6 +367,14 @@ class TimerService : Service() {
         isRunning = false
         currentPhase = null
         currentAction = null
+        mode = TimerMode.IDLE
+        ttdLabel = null
+        ttdCanFinish = false
+        isPaused = false
+        lastNotificationKey = null
+        onPauseToggle = null
+        onDepthReached = null
+        onEarlyExit = null
         if (wakeLock?.isHeld == true) wakeLock?.release()
         wakeLock = null
     }

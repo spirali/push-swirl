@@ -11,6 +11,7 @@ import androidx.compose.runtime.*
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.*
+import java.util.Locale
 import java.util.UUID
 
 sealed class AppScreen {
@@ -152,12 +153,35 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
             serviceBound = true
             // Push full settings (incl. custom sound URIs, which the start intent doesn't carry).
             timerService?.updateNotificationSettings(notificationSettings)
+            // The notification's buttons act on this session, so both stay in step.
+            timerService?.onPauseToggle = { toggleTimerFromNotification() }
+            timerService?.onDepthReached = { finishTtdFromNotification() }
+            timerService?.onEarlyExit = { earlyFinishFromNotification() }
+            pushTimerStateToService()
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
             serviceBound = false
             timerService = null
         }
+    }
+
+    /**
+     * Unbinds and drops the notification callbacks. unbindService() does NOT call
+     * onServiceDisconnected, so without this the service would keep invoking a dead
+     * ViewModel and its notification buttons would silently do nothing.
+     */
+    private fun detachFromService() {
+        timerService?.let {
+            it.onPauseToggle = null
+            it.onDepthReached = null
+            it.onEarlyExit = null
+        }
+        if (serviceBound) {
+            getApplication<Application>().unbindService(serviceConnection)
+            serviceBound = false
+        }
+        timerService = null
     }
 
     // History and stats
@@ -437,6 +461,60 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         if (sessionConfig.recordDepth) {
             currentDepthInput = storage.getLastDepthForSize(phase)
         }
+        pushTimerStateToService()
+    }
+
+    // ============================================================================
+    // ONGOING NOTIFICATION - mirrors the active-session screen
+    // ============================================================================
+
+    /** Formatted TTD elapsed time for the notification; null while the TTD timer is blinded. */
+    private fun ttdNotificationLabel(): String? =
+        if (sessionConfig.blindedTtdTimer) null
+        else String.format(Locale.getDefault(), "%d:%02d", ttdSeconds / 60, ttdSeconds % 60)
+
+    /** Pushes whatever the session is doing right now to the ongoing notification. */
+    private fun pushTimerStateToService() {
+        val service = timerService ?: return
+        when (val state = sessionState) {
+            is SessionState.TTD -> service.updateTtdState(
+                phase = state.phase,
+                elapsedLabel = ttdNotificationLabel(),
+                running = ttdRunning,
+                canFinish = ttdRunning || ttdSeconds > 0
+            )
+            is SessionState.Dilation -> service.updateTimerState(
+                state.phase, state.action, dilationRemainingSeconds, actionRemainingSeconds, dilationPaused
+            )
+            else -> service.clearPhaseActions()
+        }
+    }
+
+    /**
+     * "Pause"/"Resume" in the notification: acts on whichever timer is currently running.
+     * Returns false when there is no timer to act on, so the service can fall back to
+     * simply reflecting the button press rather than appearing dead.
+     */
+    private fun toggleTimerFromNotification(): Boolean = when (sessionState) {
+        is SessionState.TTD -> {
+            if (ttdRunning) pauseTTD() else startTTD()
+            true
+        }
+        is SessionState.Dilation -> {
+            toggleDilationPause()
+            true
+        }
+        else -> false
+    }
+
+    /** "Depth reached" in the notification: the TTD screen's button. */
+    private fun finishTtdFromNotification() {
+        if (sessionState is SessionState.TTD && (ttdRunning || ttdSeconds > 0)) finishTTD()
+    }
+
+    /** "Early exit" in the notification: the dilation screen's Early Finish. */
+    private fun earlyFinishFromNotification() {
+        if (sessionState is SessionState.Dilation) earlyFinishDilation()
     }
 
     fun startTTD() {
@@ -445,8 +523,14 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
 
         // Start a UI refresh loop
         ttdJob = viewModelScope.launch {
+            var notifiedSeconds = -1L
             while (isActive && ttdRunning) {
                 updateTimeDisplays()
+                // The notification only shows whole seconds, so refresh it no faster than that.
+                if (ttdSeconds != notifiedSeconds) {
+                    notifiedSeconds = ttdSeconds
+                    pushTimerStateToService()
+                }
                 delay(200) // Update UI 5 times per second
             }
         }
@@ -460,6 +544,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         ttdRunning = false
         ttdJob?.cancel()
         updateTimeDisplays() // Final update
+        pushTimerStateToService()
     }
 
     fun finishTTD() {
@@ -497,6 +582,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
 
         sessionState = SessionState.Dilation(phase, DilationAction.PUSH)
         updateTimeDisplays()
+        pushTimerStateToService()
 
         startDilationTimer()
         saveSessionSnapshot()
@@ -522,7 +608,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
                         (((actionPauseEndTime - now) + 999) / 1000).toInt().coerceAtLeast(0)
                     timerService?.updateTimerState(
                         (sessionState as? SessionState.Dilation)?.phase, null,
-                        dilationRemainingSeconds, actionPauseRemainingSeconds
+                        dilationRemainingSeconds, actionPauseRemainingSeconds, dilationPaused
                     )
                     if (now >= actionPauseEndTime) {
                         // Rest over: resume the clock and begin the deferred action.
@@ -580,7 +666,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
                 // Update service notification
                 val phase = (sessionState as? SessionState.Dilation)?.phase
                 val action = (sessionState as? SessionState.Dilation)?.action
-                timerService?.updateTimerState(phase, action, dilationRemainingSeconds, actionRemainingSeconds)
+                timerService?.updateTimerState(phase, action, dilationRemainingSeconds, actionRemainingSeconds, dilationPaused)
 
                 delay(200) // Check frequently for responsive UI
             }
@@ -597,25 +683,13 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
             dilationStartTime = SystemClock.elapsedRealtime()
             dilationPaused = false
 
-            timerService?.let {
-                TimerService.isPaused = false
-                val intent = Intent(getApplication(), TimerService::class.java).apply {
-                    action = TimerService.ACTION_RESUME
-                }
-                getApplication<Application>().startService(intent)
-            }
+            timerService?.setPaused(false)
         } else {
             // Pausing - save accumulated time
             dilationAccumulatedMs += SystemClock.elapsedRealtime() - dilationStartTime
             dilationPaused = true
 
-            timerService?.let {
-                TimerService.isPaused = true
-                val intent = Intent(getApplication(), TimerService::class.java).apply {
-                    action = TimerService.ACTION_PAUSE
-                }
-                getApplication<Application>().startService(intent)
-            }
+            timerService?.setPaused(true)
         }
         updateTimeDisplays() // Update UI immediately
         saveSessionSnapshot()
@@ -690,6 +764,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
                 earlyFinishSecondsRemaining = earlyFinishSecondsRemaining
             ))
             sessionState = SessionState.DepthInput(phase)
+            pushTimerStateToService()
         } else {
             saveCurrentPhaseAndAdvance()
         }
@@ -722,6 +797,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
             saveSessionSnapshot()
         } else if (sessionConfig.addTagsNoteAtEnd) {
             sessionState = SessionState.TagNoteInput
+            pushTimerStateToService()
             saveSessionSnapshot()
         } else {
             finishSession()
@@ -751,10 +827,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         storage.clearActiveSessionSnapshot()
 
         // Stop service
-        if (serviceBound) {
-            getApplication<Application>().unbindService(serviceConnection)
-            serviceBound = false
-        }
+        detachFromService()
         getApplication<Application>().stopService(Intent(getApplication(), TimerService::class.java))
 
         // Reload data
@@ -870,10 +943,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     }
 
     private fun stopService() {
-        if (serviceBound) {
-            getApplication<Application>().unbindService(serviceConnection)
-            serviceBound = false
-        }
+        detachFromService()
         getApplication<Application>().stopService(Intent(getApplication(), TimerService::class.java))
     }
 
@@ -1060,8 +1130,6 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         super.onCleared()
         ttdJob?.cancel()
         dilationJob?.cancel()
-        if (serviceBound) {
-            getApplication<Application>().unbindService(serviceConnection)
-        }
+        detachFromService()
     }
 }
