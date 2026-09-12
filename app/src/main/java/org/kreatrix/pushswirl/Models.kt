@@ -19,12 +19,40 @@ enum class PhaseSize {
     SMALL, MEDIUM, LARGE, XL
 }
 
-enum class PhaseDuration(val minutes: Int) {
-    SKIP(0),
-    FIVE(5),
-    TEN(10),
-    FIFTEEN(15),
-    THIRTY(30)
+/** Phase durations are plain minute counts; 0 means the phase is skipped. */
+const val PHASE_SKIPPED = 0
+
+/** Custom phase times are limited to two digits so the selector chips stay narrow. */
+const val MIN_CUSTOM_PHASE_MINUTES = 1
+const val MAX_CUSTOM_PHASE_MINUTES = 99
+const val DEFAULT_CUSTOM_PHASE_MINUTES = 30
+
+/**
+ * User-configurable "custom" duration offered per phase size in the New Session selector,
+ * alongside the fixed 5/10/15 options.
+ */
+data class CustomPhaseTimes(
+    val small: Int = DEFAULT_CUSTOM_PHASE_MINUTES,
+    val medium: Int = DEFAULT_CUSTOM_PHASE_MINUTES,
+    val large: Int = DEFAULT_CUSTOM_PHASE_MINUTES,
+    val xl: Int = DEFAULT_CUSTOM_PHASE_MINUTES
+) {
+    fun forSize(size: PhaseSize): Int = when (size) {
+        PhaseSize.SMALL -> small
+        PhaseSize.MEDIUM -> medium
+        PhaseSize.LARGE -> large
+        PhaseSize.XL -> xl
+    }
+
+    fun withSize(size: PhaseSize, minutes: Int): CustomPhaseTimes {
+        val m = minutes.coerceIn(MIN_CUSTOM_PHASE_MINUTES, MAX_CUSTOM_PHASE_MINUTES)
+        return when (size) {
+            PhaseSize.SMALL -> copy(small = m)
+            PhaseSize.MEDIUM -> copy(medium = m)
+            PhaseSize.LARGE -> copy(large = m)
+            PhaseSize.XL -> copy(xl = m)
+        }
+    }
 }
 
 enum class DilationAction {
@@ -33,10 +61,11 @@ enum class DilationAction {
 
 @Parcelize
 data class SessionConfig(
-    val small: PhaseDuration = PhaseDuration.SKIP,
-    val medium: PhaseDuration = PhaseDuration.FIFTEEN,
-    val large: PhaseDuration = PhaseDuration.TEN,
-    val xl: PhaseDuration = PhaseDuration.SKIP,
+    // Phase durations in minutes; PHASE_SKIPPED (0) means the phase is not part of the session.
+    val small: Int = PHASE_SKIPPED,
+    val medium: Int = 15,
+    val large: Int = 10,
+    val xl: Int = PHASE_SKIPPED,
     val actionTime: Int = 15,
     val recordDepth: Boolean = false,
     val addTagsNoteAtEnd: Boolean = false,
@@ -44,7 +73,8 @@ data class SessionConfig(
     // Rest inserted after each push/swirl switch, in seconds. 0 = no pause.
     val pauseSeconds: Int = 0
 ) : Parcelable {
-    fun getDuration(size: PhaseSize): PhaseDuration {
+    /** Duration of [size] in minutes, or [PHASE_SKIPPED] when the phase is skipped. */
+    fun getDuration(size: PhaseSize): Int {
         return when (size) {
             PhaseSize.SMALL -> small
             PhaseSize.MEDIUM -> medium
@@ -54,7 +84,7 @@ data class SessionConfig(
     }
 
     fun getActivePhases(): List<PhaseSize> {
-        return PhaseSize.entries.filter { getDuration(it) != PhaseDuration.SKIP }
+        return PhaseSize.entries.filter { getDuration(it) != PHASE_SKIPPED }
     }
 }
 

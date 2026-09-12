@@ -38,7 +38,7 @@ import java.util.TimeZone
 @Composable
 fun SettingsScreen(viewModel: SessionViewModel) {
     val isWideScreen = LocalIsWideScreen.current
-    val sectionTitles = listOf("Progress", "Countdown", "Tags", "App", "Sounds")
+    val sectionTitles = listOf("Progress", "Countdown", "Custom times", "Tags", "App", "Sounds")
 
     val intervalMinutesTotal = viewModel.countdownIntervalMinutes
     var hoursText by remember(intervalMinutesTotal) { mutableStateOf((intervalMinutesTotal / 60).toString()) }
@@ -359,9 +359,11 @@ fun SettingsScreen(viewModel: SessionViewModel) {
                         }
                     }
 
-                    2 -> TagsTabContent(viewModel)
+                    2 -> CustomTimesTabContent(viewModel)
 
-                    3 -> Column(
+                    3 -> TagsTabContent(viewModel)
+
+                    4 -> Column(
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(24.dp)
@@ -446,7 +448,7 @@ fun SettingsScreen(viewModel: SessionViewModel) {
                             )
                         }
                     }
-                    4 -> SoundsTabContent(viewModel)
+                    5 -> SoundsTabContent(viewModel)
                 }
             }
 
@@ -596,6 +598,61 @@ private fun SoundsTabContent(viewModel: SessionViewModel) {
                 }
             }
             if (index < AppSound.entries.lastIndex) HorizontalDivider()
+        }
+    }
+}
+
+/**
+ * Lets the user pick the custom (rightmost) duration offered per phase size in
+ * New Session -> Phases. Values are 1..99 minutes so the chip label stays two digits.
+ */
+@Composable
+private fun CustomTimesTabContent(viewModel: SessionViewModel) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+            .verticalScroll(rememberScrollState())
+    ) {
+        Text(
+            "Custom duration offered for each phase in New Session, next to the 5/10/15 minute options.",
+            fontSize = 13.sp,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+
+        val phases = listOf(
+            PhaseSize.SMALL to "Small",
+            PhaseSize.MEDIUM to "Medium",
+            PhaseSize.LARGE to "Large",
+            PhaseSize.XL to "XL"
+        )
+        phases.forEach { (size, label) ->
+            var text by remember(size) {
+                mutableStateOf(viewModel.customPhaseTimes.forSize(size).toString())
+            }
+            val entered = text.toIntOrNull()
+            val valid = entered != null && entered in MIN_CUSTOM_PHASE_MINUTES..MAX_CUSTOM_PHASE_MINUTES
+            OutlinedTextField(
+                value = text,
+                onValueChange = { input ->
+                    text = input.filter { it.isDigit() }.take(2)
+                    // Out-of-range input is flagged but not saved; the last valid value stands.
+                    text.toIntOrNull()
+                        ?.takeIf { it in MIN_CUSTOM_PHASE_MINUTES..MAX_CUSTOM_PHASE_MINUTES }
+                        ?.let { viewModel.updateCustomPhaseTime(size, it) }
+                },
+                label = { Text(label) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true,
+                isError = !valid,
+                supportingText = {
+                    Text("$MIN_CUSTOM_PHASE_MINUTES-$MAX_CUSTOM_PHASE_MINUTES minutes")
+                },
+                trailingIcon = { Text("m", fontSize = 14.sp) },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(8.dp))
         }
     }
 }

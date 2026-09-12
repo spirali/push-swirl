@@ -36,7 +36,7 @@ The export file is a **UTF-8 encoded JSON** file. It contains metadata about the
 | :--- | :--- | :--- |
 | `size` | String | The size category (`SMALL`, `MEDIUM`, `LARGE`, `XL`). |
 | `ttdSeconds` | Long | "TTD": Seconds taken before the dilation timer started. |
-| `dilationMinutes` | Integer | The planned duration for this phase in minutes. |
+| `dilationMinutes` | Integer | The planned duration for this phase in minutes. Any positive whole number; app versions up to 1.15 only ever produced 5, 10, 15 or 30. |
 | `earlyFinishSecondsRemaining` | Integer? | *Optional.* If the phase was ended early, the number of seconds remaining on the clock. |
 | `depthCm` | Float? | *Optional.* The recorded depth measurement in centimeters. |
 | `pauseSeconds` | Integer? | *Optional.* Length of the rest ("Break") inserted after each push/swirl switch during this phase, in seconds. Absent when breaks were disabled or for older records. |
@@ -50,6 +50,16 @@ The export file is a **UTF-8 encoded JSON** file. It contains metadata about the
 
 ---
 
+## Phase Durations
+
+Phase durations are plain minute counts everywhere in the format: `dilationMinutes` on a phase, and the equivalent `small` / `medium` / `large` / `xl` fields of the session configuration the app stores on the device. `0` means the phase is skipped and is not part of the session.
+
+Before version 1.16 the session configuration held a fixed enumeration instead, serialized as the strings `"SKIP"`, `"FIVE"`, `"TEN"`, `"FIFTEEN"` and `"THIRTY"`. That enumeration is gone; durations are now written as integers and are no longer restricted to those five values. Locally stored data written by earlier versions is still readable: when one of those fields is a string, it is mapped to its minute count (`"SKIP"` → `0`, `"FIVE"` → `5`, `"TEN"` → `10`, `"FIFTEEN"` → `15`, `"THIRTY"` → `30`), and any unrecognized string is read as `0`. Nothing is ever written back in the string form.
+
+The session configuration itself is not part of the export file — on import it is reconstructed from the `dilationMinutes` of the exported phases — so export files are unaffected by this change and older exports import unchanged.
+
+---
+
 ## Backward Compatibility
 
 All optional fields (`day0Date`, `tags`, `tagIds`, `note`, `pauseSeconds`, `startTimestamp`) are absent from exports created by older versions of the app. The app handles missing fields gracefully on import:
@@ -57,6 +67,7 @@ All optional fields (`day0Date`, `tags`, `tagIds`, `note`, `pauseSeconds`, `star
 - Missing `pauseSeconds`: phase is imported as having no break configured.
 - Missing `startTimestamp`: the app derives an approximate start time by subtracting `totalSeconds` from `timestamp`.
 - Exports from newer app versions imported by older versions: unknown fields are silently ignored by the JSON parser.
+- `dilationMinutes` outside the old 5/10/15/30 set: importable by any version, but versions before 1.16 could not reconstruct a matching session configuration from it and treated such a phase as skipped.
 
 On import, any tag from the `tags` array whose UUID does not already exist locally is added to the local tag list.
 

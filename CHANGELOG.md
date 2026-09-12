@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## v1.16
+
+* Custom phase times: set your own duration per phase size (Settings → Custom times)
+
 ## v1.15
 
 * Blinded TTD timer now shows a pulsing animation instead of "??:XX"

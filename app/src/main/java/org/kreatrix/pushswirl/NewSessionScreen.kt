@@ -29,6 +29,7 @@ fun NewSessionScreen(viewModel: SessionViewModel) {
     var addTagsNoteAtEnd by remember { mutableStateOf(viewModel.sessionConfig.addTagsNoteAtEnd) }
     var blindedTtdTimer by remember { mutableStateOf(viewModel.sessionConfig.blindedTtdTimer) }
     var selectedTab by remember { mutableStateOf(0) }
+    val custom = viewModel.customPhaseTimes
 
     Scaffold(
         topBar = {
@@ -112,14 +113,14 @@ fun NewSessionScreen(viewModel: SessionViewModel) {
                                 horizontalArrangement = Arrangement.spacedBy(24.dp)
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
-                                    PhaseSelector("Small", small) { small = it }
+                                    PhaseSelector("Small", custom.small, small) { small = it }
                                     Spacer(modifier = Modifier.height(12.dp))
-                                    PhaseSelector("Large", large) { large = it }
+                                    PhaseSelector("Large", custom.large, large) { large = it }
                                 }
                                 Column(modifier = Modifier.weight(1f)) {
-                                    PhaseSelector("Medium", medium) { medium = it }
+                                    PhaseSelector("Medium", custom.medium, medium) { medium = it }
                                     Spacer(modifier = Modifier.height(12.dp))
-                                    PhaseSelector("XL", xl) { xl = it }
+                                    PhaseSelector("XL", custom.xl, xl) { xl = it }
                                 }
                             }
                         }
@@ -236,13 +237,13 @@ fun NewSessionScreen(viewModel: SessionViewModel) {
                                 .verticalScroll(rememberScrollState()),
                             horizontalAlignment = Alignment.Start
                         ) {
-                            PhaseSelector("Small", small) { small = it }
+                            PhaseSelector("Small", custom.small, small) { small = it }
                             Spacer(modifier = Modifier.height(12.dp))
-                            PhaseSelector("Medium", medium) { medium = it }
+                            PhaseSelector("Medium", custom.medium, medium) { medium = it }
                             Spacer(modifier = Modifier.height(12.dp))
-                            PhaseSelector("Large", large) { large = it }
+                            PhaseSelector("Large", custom.large, large) { large = it }
                             Spacer(modifier = Modifier.height(12.dp))
-                            PhaseSelector("XL", xl) { xl = it }
+                            PhaseSelector("XL", custom.xl, xl) { xl = it }
                         }
                         1 -> Column(
                             modifier = Modifier
@@ -322,12 +323,22 @@ fun NewSessionScreen(viewModel: SessionViewModel) {
     }
 }
 
+/**
+ * Duration chips for one phase: skip, the fixed 5/10/15 options and the user's custom time
+ * for this phase (Settings -> Custom times). A previously stored duration that matches none
+ * of them (e.g. from a session recorded before the custom time was changed) is offered too,
+ * so the current selection is always visible.
+ */
 @Composable
 fun PhaseSelector(
     label: String,
-    selected: PhaseDuration,
-    onSelect: (PhaseDuration) -> Unit
+    customMinutes: Int,
+    selected: Int,
+    onSelect: (Int) -> Unit
 ) {
+    val options = remember(customMinutes, selected) {
+        (listOf(PHASE_SKIPPED, 5, 10, 15, customMinutes) + selected).distinct().sorted()
+    }
     Column {
         Text(
             text = label,
@@ -341,16 +352,12 @@ fun PhaseSelector(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            PhaseDuration.entries.forEach { duration ->
-                val isSelected = selected == duration
-                val chipLabel = when (duration) {
-                    PhaseDuration.SKIP -> "X"
-                    else -> "${duration.minutes}m"
-                }
+            options.forEach { minutes ->
+                val chipLabel = if (minutes == PHASE_SKIPPED) "X" else "${minutes}m"
 
                 FilterChip(
-                    selected = isSelected,
-                    onClick = { onSelect(duration) },
+                    selected = selected == minutes,
+                    onClick = { onSelect(minutes) },
                     label = { Text(chipLabel) },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = MaterialTheme.colorScheme.primary,

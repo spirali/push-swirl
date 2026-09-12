@@ -7,8 +7,13 @@ import android.os.Build
 import androidx.core.content.FileProvider
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
+import com.google.gson.JsonElement
 import com.google.gson.JsonSyntaxException
+import com.google.gson.TypeAdapter
+import com.google.gson.TypeAdapterFactory
 import com.google.gson.reflect.TypeToken
+import com.google.gson.stream.JsonReader
+import com.google.gson.stream.JsonWriter
 import java.io.File
 import java.io.InputStream
 import java.text.SimpleDateFormat
@@ -16,8 +21,13 @@ import java.util.*
 
 class SessionStorage(private val context: Context) {
     private val prefs = context.getSharedPreferences("pushswirl_prefs", Context.MODE_PRIVATE)
-    private val gson = Gson()
-    private val prettyGson = GsonBuilder().setPrettyPrinting().create()
+    private val gson = GsonBuilder()
+        .registerTypeAdapterFactory(LegacyPhaseDurationAdapterFactory)
+        .create()
+    private val prettyGson = GsonBuilder()
+        .registerTypeAdapterFactory(LegacyPhaseDurationAdapterFactory)
+        .setPrettyPrinting()
+        .create()
 
     private fun getAppVersion(): String {
         return try {
@@ -120,6 +130,26 @@ class SessionStorage(private val context: Context) {
 
     fun loadWakeLockEnabled(): Boolean {
         return prefs.getBoolean("wake_lock_enabled", true)
+    }
+
+    fun saveCustomPhaseTimes(times: CustomPhaseTimes) {
+        prefs.edit()
+            .putInt("custom_phase_time_small", times.small)
+            .putInt("custom_phase_time_medium", times.medium)
+            .putInt("custom_phase_time_large", times.large)
+            .putInt("custom_phase_time_xl", times.xl)
+            .apply()
+    }
+
+    fun loadCustomPhaseTimes(): CustomPhaseTimes {
+        fun read(key: String) = prefs.getInt(key, DEFAULT_CUSTOM_PHASE_MINUTES)
+            .coerceIn(MIN_CUSTOM_PHASE_MINUTES, MAX_CUSTOM_PHASE_MINUTES)
+        return CustomPhaseTimes(
+            small = read("custom_phase_time_small"),
+            medium = read("custom_phase_time_medium"),
+            large = read("custom_phase_time_large"),
+            xl = read("custom_phase_time_xl")
+        )
     }
 
     fun saveActiveSessionSnapshot(snapshot: ActiveSessionSnapshot) {
@@ -572,14 +602,14 @@ class SessionStorage(private val context: Context) {
                     phases += PhaseData(
                         size = PhaseSize.MEDIUM,
                         ttdSeconds = insertionSec,
-                        dilationMinutes = nearestPhaseDuration(mediumDurSec).minutes
+                        dilationMinutes = phaseMinutesFromSeconds(mediumDurSec)
                     )
                 }
                 if (largeDurSec > 0) {
                     phases += PhaseData(
                         size = PhaseSize.LARGE,
                         ttdSeconds = 0L,
-                        dilationMinutes = nearestPhaseDuration(largeDurSec).minutes,
+                        dilationMinutes = phaseMinutesFromSeconds(largeDurSec),
                         depthCm = finalDepth
                     )
                 }
@@ -614,32 +644,22 @@ class SessionStorage(private val context: Context) {
                (parts.getOrNull(2)?.toIntOrNull() ?: 0)
     }
 
-    private fun nearestPhaseDuration(seconds: Int): PhaseDuration {
-        val minutes = seconds / 60.0
-        return listOf(PhaseDuration.FIVE, PhaseDuration.TEN, PhaseDuration.FIFTEEN, PhaseDuration.THIRTY)
-            .minByOrNull { kotlin.math.abs(it.minutes - minutes) }!!
-    }
+    /** Butterfly logs record phase length in seconds; we keep whole minutes. */
+    private fun phaseMinutesFromSeconds(seconds: Int): Int =
+        kotlin.math.round(seconds / 60.0).toInt().coerceAtLeast(1)
 
     /**
      * Infer session config from the phases that were completed.
      * Config is not exported, so it's always reconstructed from phases on import.
      */
     private fun inferConfigFromPhases(phases: List<PhaseData>): SessionConfig {
-        val small = phases.find { it.size == PhaseSize.SMALL }?.let {
-            PhaseDuration.entries.find { duration -> duration.minutes == it.dilationMinutes }
-        } ?: PhaseDuration.SKIP
+        fun minutesFor(size: PhaseSize) =
+            phases.find { it.size == size }?.dilationMinutes ?: PHASE_SKIPPED
 
-        val medium = phases.find { it.size == PhaseSize.MEDIUM }?.let {
-            PhaseDuration.entries.find { duration -> duration.minutes == it.dilationMinutes }
-        } ?: PhaseDuration.SKIP
-
-        val large = phases.find { it.size == PhaseSize.LARGE }?.let {
-            PhaseDuration.entries.find { duration -> duration.minutes == it.dilationMinutes }
-        } ?: PhaseDuration.SKIP
-
-        val xl = phases.find { it.size == PhaseSize.XL }?.let {
-            PhaseDuration.entries.find { duration -> duration.minutes == it.dilationMinutes }
-        } ?: PhaseDuration.SKIP
+        val small = minutesFor(PhaseSize.SMALL)
+        val medium = minutesFor(PhaseSize.MEDIUM)
+        val large = minutesFor(PhaseSize.LARGE)
+        val xl = minutesFor(PhaseSize.XL)
 
         // Check if any phase has depth recorded
         val hasDepth = phases.any { it.depthCm != null }
@@ -732,3 +752,42 @@ fun calculateSimpleAverage(values: List<Double>): Double {
     return values.average()
 }
 
+
+/**
+ * Reads [SessionConfig] phase durations written by app versions where they were a
+ * `PhaseDuration` enum ("SKIP", "FIVE", "TEN", "FIFTEEN", "THIRTY") and turns them into
+ * plain minute counts. Durations are always written as integers.
+ */
+private object LegacyPhaseDurationAdapterFactory : TypeAdapterFactory {
+    private val legacyMinutes = mapOf(
+        "SKIP" to PHASE_SKIPPED,
+        "FIVE" to 5,
+        "TEN" to 10,
+        "FIFTEEN" to 15,
+        "THIRTY" to 30
+    )
+    private val durationFields = listOf("small", "medium", "large", "xl")
+
+    override fun <T : Any?> create(gson: Gson, type: TypeToken<T>): TypeAdapter<T>? {
+        if (type.rawType != SessionConfig::class.java) return null
+        val delegate = gson.getDelegateAdapter(this, type)
+        val elementAdapter = gson.getAdapter(JsonElement::class.java)
+        return object : TypeAdapter<T>() {
+            override fun write(out: JsonWriter, value: T) = delegate.write(out, value)
+
+            override fun read(reader: JsonReader): T {
+                val element = elementAdapter.read(reader)
+                if (element != null && element.isJsonObject) {
+                    val obj = element.asJsonObject
+                    durationFields.forEach { field ->
+                        val value = obj.get(field)
+                        if (value != null && value.isJsonPrimitive && value.asJsonPrimitive.isString) {
+                            obj.addProperty(field, legacyMinutes[value.asString] ?: PHASE_SKIPPED)
+                        }
+                    }
+                }
+                return delegate.fromJsonTree(element)
+            }
+        }
+    }
+}

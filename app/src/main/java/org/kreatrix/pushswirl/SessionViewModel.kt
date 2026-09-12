@@ -59,6 +59,8 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     var themeMode by mutableStateOf(storage.loadThemeMode())
     var countdownEnabled by mutableStateOf(storage.loadCountdownEnabled())
     var countdownIntervalMinutes by mutableIntStateOf(storage.loadCountdownIntervalMinutes())
+    var customPhaseTimes by mutableStateOf(storage.loadCustomPhaseTimes())
+        private set
     var day0Date by mutableStateOf(storage.loadDay0Date())
     var milestones by mutableStateOf(storage.loadMilestones())
     var tags by mutableStateOf(storage.loadTags())
@@ -325,6 +327,12 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         storage.saveCountdownIntervalMinutes(minutes)
     }
 
+    /** Sets the custom (rightmost) duration offered for [size]; clamped to 1..99 minutes. */
+    fun updateCustomPhaseTime(size: PhaseSize, minutes: Int) {
+        customPhaseTimes = customPhaseTimes.withSize(size, minutes)
+        storage.saveCustomPhaseTimes(customPhaseTimes)
+    }
+
     fun updateDay0Date(epochMillis: Long?) {
         day0Date = epochMillis
         storage.saveDay0Date(epochMillis)
@@ -459,7 +467,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         lastTtdSeconds = calculateTtdSeconds()
         pauseTTD()
         val phase = activePhases[currentPhaseIndex]
-        val plannedMinutes = sessionConfig.getDuration(phase).minutes
+        val plannedMinutes = sessionConfig.getDuration(phase)
         saveSessionCheckpoint(PhaseData(
             size = phase,
             ttdSeconds = lastTtdSeconds,
@@ -479,7 +487,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         val phase = activePhases[currentPhaseIndex]
         val duration = sessionConfig.getDuration(phase)
 
-        dilationTotalSeconds = duration.minutes * 60
+        dilationTotalSeconds = duration * 60
         dilationStartTime = SystemClock.elapsedRealtime()
         dilationAccumulatedMs = 0L
         dilationPaused = false
@@ -658,7 +666,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
             saveSessionCheckpoint(PhaseData(
                 size = phase,
                 ttdSeconds = lastTtdSeconds,
-                dilationMinutes = duration.minutes,
+                dilationMinutes = duration,
                 actionTime = sessionConfig.actionTime,
                 pauseSeconds = sessionConfig.pauseSeconds.takeIf { it > 0 },
                 earlyFinishSecondsRemaining = earlyFinishSecondsRemaining
@@ -677,7 +685,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
             PhaseData(
                 size = phase,
                 ttdSeconds = lastTtdSeconds,
-                dilationMinutes = duration.minutes,
+                dilationMinutes = duration,
                 actionTime = sessionConfig.actionTime,
                 pauseSeconds = sessionConfig.pauseSeconds.takeIf { it > 0 },
                 earlyFinishSecondsRemaining = earlyFinishSecondsRemaining,
@@ -811,7 +819,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
                 PhaseData(
                     size = phase,
                     ttdSeconds = lastTtdSeconds,
-                    dilationMinutes = sessionConfig.getDuration(phase).minutes,
+                    dilationMinutes = sessionConfig.getDuration(phase),
                     actionTime = sessionConfig.actionTime,
                     pauseSeconds = sessionConfig.pauseSeconds.takeIf { it > 0 },
                     earlyFinishSecondsRemaining = calculateDilationRemainingSeconds(),
@@ -824,7 +832,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
                 PhaseData(
                     size = phase,
                     ttdSeconds = lastTtdSeconds,
-                    dilationMinutes = sessionConfig.getDuration(phase).minutes,
+                    dilationMinutes = sessionConfig.getDuration(phase),
                     actionTime = sessionConfig.actionTime,
                     pauseSeconds = sessionConfig.pauseSeconds.takeIf { it > 0 },
                     earlyFinishSecondsRemaining = earlyFinishSecondsRemaining,
