@@ -596,8 +596,10 @@ private fun SoundsTabContent(viewModel: SessionViewModel) {
         }
     }
 
-    fun releasePermission(uriStr: String?) {
+    // Persisted grants are per-URI, so keep one that another cue still uses.
+    fun releasePermission(uriStr: String?, replacingSlot: AppSound) {
         uriStr ?: return
+        if (AppSound.entries.any { it != replacingSlot && settings.customUriFor(it) == uriStr }) return
         runCatching {
             context.contentResolver.releasePersistableUriPermission(
                 Uri.parse(uriStr), Intent.FLAG_GRANT_READ_URI_PERMISSION
@@ -617,7 +619,8 @@ private fun SoundsTabContent(viewModel: SessionViewModel) {
                 )
             }
             // Release the previously-held grant for this slot, if any, before replacing it.
-            releasePermission(settings.customUriFor(sound))
+            // Skip when re-picking the same file: releasing would drop the grant just taken.
+            settings.customUriFor(sound)?.takeIf { it != uri.toString() }?.let { releasePermission(it, sound) }
             viewModel.updateNotificationSettings(settings.withCustomUri(sound, uri.toString()))
         }
     }
@@ -663,7 +666,7 @@ private fun SoundsTabContent(viewModel: SessionViewModel) {
                     }) { Text("Set own sound") }
                     TextButton(
                         onClick = {
-                            releasePermission(settings.customUriFor(sound))
+                            releasePermission(settings.customUriFor(sound), sound)
                             viewModel.updateNotificationSettings(settings.withCustomUri(sound, null))
                         },
                         enabled = isCustom

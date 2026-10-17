@@ -3,6 +3,7 @@ package org.kreatrix.pushswirl
 import android.content.Context
 import android.media.MediaPlayer
 import android.net.Uri
+import android.util.Log
 
 /**
  * The three configurable cue sounds, each mapped to its built-in default resource.
@@ -35,7 +36,7 @@ fun NotificationSettings.withCustomUri(sound: AppSound, uri: String?): Notificat
  * default fails. Caller owns releasing the returned player.
  */
 fun createAppSoundPlayer(context: Context, sound: AppSound, customUri: String?): MediaPlayer? {
-    val fromCustom = customUri?.let { runCatching { MediaPlayer.create(context, Uri.parse(it)) }.getOrNull() }
+    val fromCustom = customUri?.let { createCustomPlayer(context, Uri.parse(it)) }
     return fromCustom ?: runCatching { MediaPlayer.create(context, sound.defaultRes) }.getOrNull()
 }
 
@@ -48,4 +49,19 @@ fun playAppSoundPreview(context: Context, sound: AppSound, settings: Notificatio
     mp.setOnCompletionListener { it.release() }
     mp.start()
     return mp
+}
+
+private fun createCustomPlayer(context: Context, uri: Uri): MediaPlayer? {
+    val mp = MediaPlayer()
+    return try {
+        context.contentResolver.openAssetFileDescriptor(uri, "r")!!.use { afd ->
+            mp.setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
+        }
+        mp.prepare()
+        mp
+    } catch (e: Exception) {
+        Log.w("AppSound", "Custom sound $uri unusable, falling back to default", e)
+        mp.release()
+        null
+    }
 }
