@@ -3,6 +3,8 @@
 ## v1.17
 
 * Depth unit setting: choose centimeters or inches (Settings → App).
+* Statistics: new Depth chart
+* Statistics: Fixed Y axis (day rounding problem)
 
 ## v1.16
 

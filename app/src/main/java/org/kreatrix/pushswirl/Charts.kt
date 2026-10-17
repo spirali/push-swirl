@@ -100,7 +100,9 @@ private fun pickNiceStep(
     fallbackStep: Float,
     ticksForStep: (Float) -> List<Float>,
     formatter: (Float) -> String,
-    sameUnitLabels: (List<String>) -> List<String> = { it }
+    sameUnitLabels: (List<String>) -> List<String> = { it },
+    candidates: List<Float> = Y_TICK_CANDIDATES,
+    friendlyUnitStepsOnly: Boolean = true
 ): Float {
     val validRange = 2..(targetCount + 3)
 
@@ -116,25 +118,38 @@ private fun pickNiceStep(
         val allD = check.all { 'd' in it && 'h' !in it }
         // Restrict to user-friendly step sizes per unit, detected via the step's own label
         val stepLabel = formatter(step)
-        if (allM && stepLabel !in NICE_MINUTE_LABELS) return Int.MAX_VALUE
-        if (allH && stepLabel !in NICE_HOUR_LABELS)   return Int.MAX_VALUE
+        if (friendlyUnitStepsOnly && allM && stepLabel !in NICE_MINUTE_LABELS) return Int.MAX_VALUE
+        if (friendlyUnitStepsOnly && allH && stepLabel !in NICE_HOUR_LABELS)   return Int.MAX_VALUE
         val sameUnit = allH || allM || allS || allD
         return (if (penalizeMixedUnit && !sameUnit) 100 else 0) + abs(ticks.size - targetCount) * 10 + ticks.size
     }
 
-    val preferredStep = Y_TICK_CANDIDATES.minByOrNull { score(it, true) } ?: fallbackStep
+    val preferredStep = candidates.minByOrNull { score(it, true) } ?: fallbackStep
     // If the same-unit winner is too sparse, allow cross-unit steps
     return if (ticksForStep(preferredStep).size < 4) {
-        Y_TICK_CANDIDATES.minByOrNull { score(it, false) } ?: preferredStep
+        candidates.minByOrNull { score(it, false) } ?: preferredStep
     } else preferredStep
 }
 
-fun niceYTicks(dataMax: Float, formatter: (Float) -> String, targetCount: Int = 5): Pair<Float, List<Float>> {
+/**
+ * [stepCandidates] overrides the default step list (e.g. day-aligned steps); the formatter must then
+ * render every candidate exactly, since the built-in "friendly unit" step restrictions are skipped.
+ */
+fun niceYTicks(
+    dataMax: Float,
+    formatter: (Float) -> String,
+    targetCount: Int = 5,
+    stepCandidates: List<Float>? = null
+): Pair<Float, List<Float>> {
     fun ticksForStep(step: Float): List<Float> {
         val count = ceil(dataMax / step).toInt() + 1
         return generateSequence(0f) { it + step }.take(count).toList()
     }
-    val step = pickNiceStep(targetCount, dataMax / targetCount, ::ticksForStep, formatter, sameUnitLabels = { it.drop(1) })
+    val step = pickNiceStep(
+        targetCount, dataMax / targetCount, ::ticksForStep, formatter, sameUnitLabels = { it.drop(1) },
+        candidates = stepCandidates ?: Y_TICK_CANDIDATES,
+        friendlyUnitStepsOnly = stepCandidates == null
+    )
     val ticks = ticksForStep(step)
     return Pair(ticks.last(), ticks)
 }
@@ -157,7 +172,8 @@ fun LineChart(
     modifier: Modifier = Modifier,
     yAxisFormatter: (Float) -> String = { "%.0f".format(it) },
     xAxisFormatter: ((Float) -> String)? = null,
-    xMilestonePositions: List<Float> = emptyList()
+    xMilestonePositions: List<Float> = emptyList(),
+    yStepCandidates: List<Float>? = null
 ) {
     val textColor = MaterialTheme.colorScheme.onSurface
     val gridColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
@@ -174,7 +190,7 @@ fun LineChart(
         val xMax = allPoints.maxOf { it.x }
         val scalePoints = series.filter { it.countForYScale }.flatMap { it.points }
         val dataYMax = (if (scalePoints.isEmpty()) allPoints else scalePoints).maxOf { it.y }.coerceAtLeast(1f)
-        val (chartYMax, yTicks) = niceYTicks(dataYMax, yAxisFormatter)
+        val (chartYMax, yTicks) = niceYTicks(dataYMax, yAxisFormatter, stepCandidates = yStepCandidates)
 
         Canvas(modifier = modifier) {
             val leftPad    = with(density) { 68.dp.toPx() }

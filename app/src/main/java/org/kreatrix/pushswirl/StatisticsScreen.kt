@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
 
 private val COLOR_SMALL  = Color(0xFF66BB6A)
 private val COLOR_MEDIUM = Color(0xFF42A5F5)
@@ -65,7 +66,8 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
     }
 
     // Compute filtered + sorted sessions for charts
-    val chartData = remember(sessions, statsFilterDays, statsExcludedPeriodKeys, statsFilterTagIds, day0Date, onSurface, ttdVisibleSizes, milestones) {
+    val depthUnit = viewModel.depthUnit
+    val chartData = remember(sessions, statsFilterDays, statsExcludedPeriodKeys, statsFilterTagIds, day0Date, onSurface, ttdVisibleSizes, milestones, depthUnit) {
         val cutoff = statsFilterDays?.let { System.currentTimeMillis() - it * 24L * 60 * 60 * 1000 }
         val sortedMilestones = milestones.sortedBy { it.date }
         val filtered = run {
@@ -120,29 +122,35 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
             }
         }
 
-        val ttdInputs = listOf(
-            Triple(PhaseSize.SMALL,  "Small",  COLOR_SMALL),
-            Triple(PhaseSize.MEDIUM, "Medium", COLOR_MEDIUM),
-            Triple(PhaseSize.LARGE,  "Large",  COLOR_LARGE),
-            Triple(PhaseSize.XL,     "XL",     COLOR_XL),
-        ).filter { (size, _, _) -> size in ttdVisibleSizes }.map { (size, label, color) ->
-            val points = sorted.mapIndexedNotNull { idx, session ->
-                session.phases.find { it.size == size }?.let { phase ->
-                    ChartPoint(sessionX(session, idx), phase.ttdSeconds.toFloat())
+        // One line per visible phase size; [valueOf] picks the plotted value (null = no point).
+        fun perSizeSeries(valueOf: (PhaseData) -> Float?): List<ChartSeries> {
+            val inputs = listOf(
+                Triple(PhaseSize.SMALL,  "Small",  COLOR_SMALL),
+                Triple(PhaseSize.MEDIUM, "Medium", COLOR_MEDIUM),
+                Triple(PhaseSize.LARGE,  "Large",  COLOR_LARGE),
+                Triple(PhaseSize.XL,     "XL",     COLOR_XL),
+            ).filter { (size, _, _) -> size in ttdVisibleSizes }.map { (size, label, color) ->
+                val points = sorted.mapIndexedNotNull { idx, session ->
+                    session.phases.find { it.size == size }?.let(valueOf)?.let { value ->
+                        ChartPoint(sessionX(session, idx), value)
+                    }
                 }
+                Triple(color, label, points)
             }
-            Triple(color, label, points)
+            val maOnly = inputs.any { (_, _, points) -> points.size > CHART_DENSE_THRESHOLD }
+            return inputs.flatMap { (color, label, points) ->
+                val tintedReg = Color(
+                    red   = onSurface.red   * 0.55f + color.red   * 0.45f,
+                    green = onSurface.green * 0.55f + color.green * 0.45f,
+                    blue  = onSurface.blue  * 0.55f + color.blue  * 0.45f,
+                    alpha = 1f
+                )
+                buildSeries(color, label, points, maOnly, regColor = tintedReg)
+            }
         }
-        val ttdMaOnly = ttdInputs.any { (_, _, points) -> points.size > CHART_DENSE_THRESHOLD }
-        val ttdSeries = ttdInputs.flatMap { (color, label, points) ->
-            val tintedReg = Color(
-                red   = onSurface.red   * 0.55f + color.red   * 0.45f,
-                green = onSurface.green * 0.55f + color.green * 0.45f,
-                blue  = onSurface.blue  * 0.55f + color.blue  * 0.45f,
-                alpha = 1f
-            )
-            buildSeries(color, label, points, ttdMaOnly, regColor = tintedReg)
-        }
+        val ttdSeries = perSizeSeries { it.ttdSeconds.toFloat() }
+        // Depth is stored in cm; plot it in the user's unit.
+        val depthSeries = perSizeSeries { phase -> phase.depthCm?.let { depthUnit.fromCm(it).toFloat() } }
 
         val gapSeries = if (sorted.size < 2) emptyList()
         else {
@@ -158,9 +166,9 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
         }
         val lengthSeries = buildSeries(COLOR_MEDIUM, "Length", lengthPoints, lengthPoints.size > CHART_DENSE_THRESHOLD)
 
-        Triple(ttdSeries, gapSeries, lengthSeries)
+        ChartSeriesSet(ttdSeries, gapSeries, lengthSeries, depthSeries)
     }
-    val (ttdSeries, gapSeries, lengthSeries) = chartData
+    val (ttdSeries, gapSeries, lengthSeries, depthSeries) = chartData
 
     // Stacked TTD layers + sum regression lines
     val ttdStackedData = remember(sessions, statsFilterDays, statsExcludedPeriodKeys, statsFilterTagIds, day0Date, ttdVisibleSizes, milestones) {
@@ -406,20 +414,19 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
                     // Time between sessions chart
                     if (gapSeries.isNotEmpty()) {
                         ChartCard(title = "Time Between Sessions") {
+                            // Whole axis is in days once the data reaches GAP_DAYS_THRESHOLD_H, otherwise in
+                            // hours/minutes; steps are chosen so every tick label is exact.
+                            val gapMaxH = gapSeries.filter { it.countForYScale }.flatMap { it.points }.maxOf { it.y }
+                            val gapInDays = gapMaxH >= GAP_DAYS_THRESHOLD_H
                             LineChart(
                                 series = gapSeries,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(180.dp),
-                                yAxisFormatter = { h ->
-                                    when {
-                                        h >= 24f -> "${(h / 24f).toInt()}d"
-                                        h >= 1f  -> "${h.toInt()}h"
-                                        else     -> "${(h * 60f).toInt()}m"
-                                    }
-                                },
+                                yAxisFormatter = { formatGapAxis(it, gapInDays) },
                                 xAxisFormatter = xAxisFormatter,
-                                xMilestonePositions = xMilestonePositions
+                                xMilestonePositions = xMilestonePositions,
+                                yStepCandidates = if (gapInDays) GAP_STEPS_DAYS_H else GAP_STEPS_HOURS_H
                             )
                         }
                     }
@@ -441,29 +448,7 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
 
                     // TTD chart (line with MA + regression per phase)
                     ChartCard(title = "TTD") {
-                        val ttdSizeEntries = listOf(
-                            Triple(PhaseSize.SMALL,  "Small",  COLOR_SMALL),
-                            Triple(PhaseSize.MEDIUM, "Medium", COLOR_MEDIUM),
-                            Triple(PhaseSize.LARGE,  "Large",  COLOR_LARGE),
-                            Triple(PhaseSize.XL,     "XL",     COLOR_XL),
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            ttdSizeEntries.forEach { (size, label, color) ->
-                                val selected = size in ttdVisibleSizes
-                                FilterChip(
-                                    selected = selected,
-                                    onClick = { viewModel.toggleTtdSize(size) },
-                                    label = { Text(label) },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = color.copy(alpha = 0.25f),
-                                        selectedLabelColor = color
-                                    )
-                                )
-                            }
-                        }
+                        SizeFilterChips(ttdVisibleSizes) { viewModel.toggleTtdSize(it) }
                         if (ttdSeries.isNotEmpty()) {
                             Spacer(modifier = Modifier.height(8.dp))
                             LineChart(
@@ -477,6 +462,26 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             ChartLegend(series = ttdSeries)
+                        }
+                    }
+
+                    // Depth chart (only when depth has been recorded); uses the same size filter as TTD
+                    if (depthSeries.isNotEmpty()) {
+                        ChartCard(title = "Depth") {
+                            SizeFilterChips(ttdVisibleSizes) { viewModel.toggleTtdSize(it) }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            LineChart(
+                                series = depthSeries,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(180.dp),
+                                yAxisFormatter = { formatDepthTick(it, depthUnit) },
+                                xAxisFormatter = xAxisFormatter,
+                                xMilestonePositions = xMilestonePositions,
+                                yStepCandidates = depthStepCandidates(depthUnit)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            ChartLegend(series = depthSeries)
                         }
                     }
 
@@ -602,6 +607,66 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
                     Spacer(modifier = Modifier.height(8.dp))
                 }
             }
+        }
+    }
+}
+
+/** Gap axis switches from hours to days at this many hours. */
+private const val GAP_DAYS_THRESHOLD_H = 60f
+/** Y-axis step candidates for the gap chart, in hours: 15m, 30m, 1h, 2h, 3h, 6h, 12h, 24h. */
+internal val GAP_STEPS_HOURS_H = listOf(0.25f, 0.5f, 1f, 2f, 3f, 6f, 12f, 24f)
+/** Same, whole days only: 1, 2, 3, 5, 7, 10, 14, 30, 60, 90, 180, 365 days. */
+internal val GAP_STEPS_DAYS_H = listOf(1, 2, 3, 5, 7, 10, 14, 30, 60, 90, 180, 365).map { it * 24f }
+
+internal fun formatGapAxis(hours: Float, inDays: Boolean): String = when {
+    hours == 0f && inDays -> "0"
+    inDays -> "${(hours / 24f).roundToInt()}d"
+    hours >= 1f && hours % 1f == 0f -> "${hours.roundToInt()}h"
+    else -> "${(hours * 60f).roundToInt()}m"
+}
+
+private data class ChartSeriesSet(
+    val ttd: List<ChartSeries>,
+    val gap: List<ChartSeries>,
+    val length: List<ChartSeries>,
+    val depth: List<ChartSeries>
+)
+
+/**
+ * Explicit steps so tick choice never depends on the label text (a label like "14 cm" would otherwise
+ * be mistaken for minutes by the generic unit heuristics).
+ */
+internal fun depthStepCandidates(unit: DepthUnit): List<Float> = when (unit) {
+    DepthUnit.CM   -> listOf(0.5f, 1f, 2f, 5f, 10f, 20f)
+    DepthUnit.INCH -> listOf(0.25f, 0.5f, 1f, 2f, 5f, 10f)
+}
+
+/** Axis label without trailing zeros, with unit: "14 cm", "5.25 in". */
+internal fun formatDepthTick(value: Float, unit: DepthUnit): String =
+    java.math.BigDecimal(value.toDouble()).setScale(unit.decimals, java.math.RoundingMode.HALF_UP)
+        .stripTrailingZeros().toPlainString() + " " + unit.label
+
+@Composable
+private fun SizeFilterChips(visibleSizes: Set<PhaseSize>, onToggle: (PhaseSize) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        listOf(
+            Triple(PhaseSize.SMALL,  "Small",  COLOR_SMALL),
+            Triple(PhaseSize.MEDIUM, "Medium", COLOR_MEDIUM),
+            Triple(PhaseSize.LARGE,  "Large",  COLOR_LARGE),
+            Triple(PhaseSize.XL,     "XL",     COLOR_XL),
+        ).forEach { (size, label, color) ->
+            FilterChip(
+                selected = size in visibleSizes,
+                onClick = { onToggle(size) },
+                label = { Text(label) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = color.copy(alpha = 0.25f),
+                    selectedLabelColor = color
+                )
+            )
         }
     }
 }
