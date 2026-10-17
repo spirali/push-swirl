@@ -186,6 +186,15 @@ class SessionStorage(private val context: Context) {
         return ThemeMode.valueOf(name)
     }
 
+    fun saveDepthUnit(unit: DepthUnit) {
+        prefs.edit().putString("depth_unit", unit.name).apply()
+    }
+
+    fun loadDepthUnit(): DepthUnit {
+        val name = prefs.getString("depth_unit", null)
+        return DepthUnit.entries.firstOrNull { it.name == name } ?: DepthUnit.CM
+    }
+
     fun saveCountdownEnabled(enabled: Boolean) {
         prefs.edit().putBoolean("countdown_enabled", enabled).apply()
     }

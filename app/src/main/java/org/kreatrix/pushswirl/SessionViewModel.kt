@@ -61,6 +61,9 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     var pipEnabled by mutableStateOf(storage.loadPipEnabled())
         private set
     var themeMode by mutableStateOf(storage.loadThemeMode())
+    /** Unit used to show/enter depth; depth itself is always stored in cm. */
+    var depthUnit by mutableStateOf(storage.loadDepthUnit())
+        private set
     var countdownEnabled by mutableStateOf(storage.loadCountdownEnabled())
     var countdownIntervalMinutes by mutableIntStateOf(storage.loadCountdownIntervalMinutes())
     var reminderEnabled by mutableStateOf(storage.loadReminderEnabled())
@@ -356,6 +359,11 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     fun updateThemeMode(mode: ThemeMode) {
         themeMode = mode
         storage.saveThemeMode(mode)
+    }
+
+    fun updateDepthUnit(unit: DepthUnit) {
+        depthUnit = unit
+        storage.saveDepthUnit(unit)
     }
 
     fun updateCountdownEnabled(enabled: Boolean) {

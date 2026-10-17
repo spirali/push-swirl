@@ -15,8 +15,8 @@ android {
         applicationId = "org.kreatrix.pushswirl"
         minSdk = 26
         targetSdk = 36
-        versionCode = 16
-        versionName = "1.16"
+        versionCode = 17
+        versionName = "1.17"
 
         setProperty("archivesBaseName", "push_swirl-v$versionName")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -51,6 +51,7 @@ kotlin {
 }
 
 dependencies {
+    testImplementation(libs.junit)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)

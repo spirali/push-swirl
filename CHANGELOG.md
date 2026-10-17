@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## v1.17
+
+* Depth unit setting: choose centimeters or inches (Settings → App).
+
 ## v1.16
 
 * Home-screen widget

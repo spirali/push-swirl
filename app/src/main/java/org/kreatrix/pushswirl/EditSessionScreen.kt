@@ -24,7 +24,8 @@ import java.util.TimeZone
 private data class PhaseEditState(
     val ttdMinutes: String,
     val ttdSeconds: String,
-    val depthCm: String
+    val depthCm: String,
+    val originalDepthText: String
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -38,14 +39,15 @@ fun EditSessionScreen(viewModel: SessionViewModel) {
 
     BackHandler { cancel() }
 
+    val depthUnit = viewModel.depthUnit
     var editPhases by remember {
         mutableStateOf(session.phases.map { phase ->
+            val depthText = phase.depthCm?.let { depthUnit.inputText(it) } ?: ""
             PhaseEditState(
                 ttdMinutes = (phase.ttdSeconds / 60).toString(),
                 ttdSeconds  = (phase.ttdSeconds % 60).toString(),
-                depthCm    = phase.depthCm?.let {
-                    if (it % 1 == 0f) it.toInt().toString() else String.format(Locale.ROOT, "%.1f", it)
-                } ?: ""
+                depthCm    = depthText,
+                originalDepthText = depthText
             )
         })
     }
@@ -67,7 +69,12 @@ fun EditSessionScreen(viewModel: SessionViewModel) {
         val updatedPhases = session.phases.mapIndexed { i, phase ->
             val mins     = editPhases[i].ttdMinutes.toLongOrNull() ?: 0L
             val secs     = editPhases[i].ttdSeconds.toLongOrNull() ?: 0L
-            val newDepth = if (phase.depthCm != null) editPhases[i].depthCm.replace(',', '.').toFloatOrNull() else null
+            // Untouched field -> keep the stored cm value exactly (display rounding must not alter data).
+            val newDepth = when {
+                phase.depthCm == null -> null
+                editPhases[i].depthCm == editPhases[i].originalDepthText -> phase.depthCm
+                else -> editPhases[i].depthCm.replace(',', '.').toDoubleOrNull()?.let { depthUnit.toCm(it) }
+            }
             phase.copy(ttdSeconds = mins * 60 + secs, depthCm = newDepth)
         }
         val totalMins = editTotalMinutes.toLongOrNull() ?: 0L
@@ -197,7 +204,7 @@ fun EditSessionScreen(viewModel: SessionViewModel) {
                                 list[i] = list[i].copy(depthCm = it)
                             }
                         },
-                        label = { Text("Depth (cm)") },
+                        label = { Text("Depth (${depthUnit.label})") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true,
                         modifier = Modifier.width(160.dp)

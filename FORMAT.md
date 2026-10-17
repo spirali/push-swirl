@@ -38,7 +38,7 @@ The export file is a **UTF-8 encoded JSON** file. It contains metadata about the
 | `ttdSeconds` | Long | "TTD": Seconds taken before the dilation timer started. |
 | `dilationMinutes` | Integer | The planned duration for this phase in minutes. Any positive whole number; app versions up to 1.15 only ever produced 5, 10, 15 or 30. |
 | `earlyFinishSecondsRemaining` | Integer? | *Optional.* If the phase was ended early, the number of seconds remaining on the clock. |
-| `depthCm` | Float? | *Optional.* The recorded depth measurement in centimeters. |
+| `depthCm` | Float? | *Optional.* The recorded depth measurement in centimeters. Always cm, regardless of the app's depth-unit display setting. |
 | `pauseSeconds` | Integer? | *Optional.* Length of the rest ("Break") inserted after each push/swirl switch during this phase, in seconds. Absent when breaks were disabled or for older records. |
 
 ### Tag Object (`TagExport`)

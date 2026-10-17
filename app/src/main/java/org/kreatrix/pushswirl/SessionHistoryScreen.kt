@@ -74,6 +74,7 @@ fun SessionHistoryScreen(viewModel: SessionViewModel) {
                         SessionCard(
                             session = session,
                             allTags = viewModel.tags,
+                            depthUnit = viewModel.depthUnit,
                             expanded = expandedIds[session.id] == true,
                             onExpandedChange = { expandedIds[session.id] = it },
                             onEdit = { viewModel.navigateTo(AppScreen.EditSession(session)) },
@@ -141,6 +142,7 @@ private fun SortControlsRow(
 fun SessionCard(
     session: Session,
     allTags: List<Tag>,
+    depthUnit: DepthUnit,
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
     onEdit: () -> Unit,
@@ -262,11 +264,7 @@ fun SessionCard(
                         }
                         if (phase.depthCm != null) {
                             Spacer(modifier = Modifier.height(4.dp))
-                            val depthFormatted = if (phase.depthCm % 1 == 0f) {
-                                "${phase.depthCm.toInt()} cm"
-                            } else {
-                                String.format("%.1f cm", phase.depthCm)
-                            }
+                            val depthFormatted = depthUnit.format(phase.depthCm)
                             Text(
                                 text = "Depth: $depthFormatted",
                                 fontSize = 13.sp,

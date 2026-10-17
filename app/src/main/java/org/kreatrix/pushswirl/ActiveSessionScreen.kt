@@ -345,39 +345,32 @@ private fun TTDButtons(viewModel: SessionViewModel) {
 
 @Composable
 fun DepthInputView(viewModel: SessionViewModel, phase: PhaseSize, isWideScreen: Boolean = false) {
-    var depthText by remember {
-        mutableStateOf(
-            if (viewModel.currentDepthInput % 1 == 0f) {
-                viewModel.currentDepthInput.toInt().toString()
-            } else {
-                viewModel.currentDepthInput.toString()
-            }
-        )
-    }
+    val unit = viewModel.depthUnit
+    var depthText by remember { mutableStateOf(unit.inputText(viewModel.currentDepthInput)) }
 
-    val isValidDepth = depthText.isNotEmpty() &&
-            depthText.toFloatOrNull() != null &&
-            depthText.toFloatOrNull()!! in 0.1f..99.9f
+    // The ViewModel holds depth in cm; the field is in the user's unit.
+    fun parseCm(text: String): Float? =
+        text.toDoubleOrNull()?.let { unit.toCm(it) }?.takeIf { it in 0.1f..99.9f }
+
+    val isValidDepth = parseCm(depthText) != null
 
     val onValueChange: (String) -> Unit = { newValue ->
-        val filtered = newValue.filter { it.isDigit() || it == '.' }
+        val filtered = newValue.replace(',', '.').filter { it.isDigit() || it == '.' }
         val dotCount = filtered.count { it == '.' }
         if (dotCount <= 1) {
             val parts = filtered.split('.')
             val isValid = when {
                 parts.size == 1 -> true
-                parts.size == 2 -> parts[1].length <= 1
+                parts.size == 2 -> parts[1].length <= unit.decimals
                 else -> false
             }
             if (isValid) {
                 depthText = filtered
-                val depth = filtered.toFloatOrNull()
-                if (depth != null && depth in 0.1f..99.9f) {
-                    viewModel.updateDepthInput(depth)
-                }
+                parseCm(filtered)?.let { viewModel.updateDepthInput(it) }
             }
         }
     }
+    val exampleText = if (unit == DepthUnit.CM) "14.5" else "5.75"
 
     if (isWideScreen) {
         Row(
@@ -409,14 +402,14 @@ fun DepthInputView(viewModel: SessionViewModel, phase: PhaseSize, isWideScreen: 
                 OutlinedTextField(
                     value = depthText,
                     onValueChange = onValueChange,
-                    label = { Text("Depth (cm)") },
+                    label = { Text("Depth (${unit.label})") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Enter the depth reached in centimeters (e.g., 14.5)",
+                    text = "Enter the depth reached in ${unit.unitName} (e.g., $exampleText)",
                     fontSize = 14.sp,
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                 )
@@ -456,14 +449,14 @@ fun DepthInputView(viewModel: SessionViewModel, phase: PhaseSize, isWideScreen: 
             OutlinedTextField(
                 value = depthText,
                 onValueChange = onValueChange,
-                label = { Text("Depth (cm)") },
+                label = { Text("Depth (${unit.label})") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Enter the depth reached in centimeters (e.g., 14.5)",
+                text = "Enter the depth reached in ${unit.unitName} (e.g., $exampleText)",
                 fontSize = 14.sp,
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
             )

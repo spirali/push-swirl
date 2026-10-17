@@ -6,6 +6,38 @@ import java.util.UUID
 
 enum class ThemeMode { AUTO, LIGHT, DARK }
 
+/**
+ * Display/entry unit for depth. Depth is always *stored* in centimeters (`PhaseData.depthCm`);
+ * this only affects what the user sees and types. All math is done in Double and rounded
+ * (never truncated) so values typed with at most [decimals] places read back unchanged.
+ */
+enum class DepthUnit(val label: String, val unitName: String, val decimals: Int, private val cmPerUnit: Double) {
+    CM("cm", "centimeters", 1, 1.0),
+    INCH("in", "inches", 2, 2.54);
+
+    fun fromCm(cm: Float): Double = roundToDecimals(cm / cmPerUnit)
+
+    fun toCm(value: Double): Float = (value * cmPerUnit).toFloat()
+
+    /** Text for an input field: rounded, no trailing zeros ("14", "14.5", "5.51"). */
+    fun inputText(cm: Float): String =
+        java.math.BigDecimal(fromCm(cm)).setScale(decimals, java.math.RoundingMode.HALF_UP)
+            .stripTrailingZeros().toPlainString()
+
+    /** Text for read-only display, with unit suffix ("14 cm", "14.5 cm", "5.51 in"). */
+    fun format(cm: Float): String {
+        val v = fromCm(cm)
+        val number = if (this == CM && v % 1.0 == 0.0) v.toLong().toString()
+                     else String.format(java.util.Locale.US, "%.${decimals}f", v)
+        return "$number $label"
+    }
+
+    private fun roundToDecimals(v: Double): Double {
+        val f = Math.pow(10.0, decimals.toDouble())
+        return Math.round(v * f) / f
+    }
+}
+
 enum class TagColor { RED, ORANGE, GREEN, BLUE }
 
 @Parcelize

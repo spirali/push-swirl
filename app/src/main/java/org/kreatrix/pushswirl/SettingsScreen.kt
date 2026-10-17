@@ -449,6 +449,28 @@ fun SettingsScreen(viewModel: SessionViewModel) {
                                 }
                         }
 
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text("Depth unit", fontSize = 16.sp)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf(DepthUnit.CM to "Centimeters (cm)", DepthUnit.INCH to "Inches (in)")
+                                .forEach { (unit, label) ->
+                                    FilterChip(
+                                        selected = viewModel.depthUnit == unit,
+                                        onClick = { viewModel.updateDepthUnit(unit) },
+                                        label = { Text(label) },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                            selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                                        ),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                        }
+
                         Spacer(modifier = Modifier.height(24.dp))
                         HorizontalDivider()
                         Spacer(modifier = Modifier.height(24.dp))
