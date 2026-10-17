@@ -945,7 +945,7 @@ private fun SoundSettingsDialog(
                                     checked = local.switchBeepsEnabled,
                                     onCheckedChange = { local = local.copy(switchBeepsEnabled = it) }
                                 )
-                                Text("Switch beeps", modifier = Modifier.padding(start = 4.dp))
+                                Text("Switch sounds", modifier = Modifier.padding(start = 4.dp))
                             }
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -955,7 +955,17 @@ private fun SoundSettingsDialog(
                                     checked = local.phaseFanfareEnabled,
                                     onCheckedChange = { local = local.copy(phaseFanfareEnabled = it) }
                                 )
-                                Text("Phase fanfare", modifier = Modifier.padding(start = 4.dp))
+                                Text("End of phase sound", modifier = Modifier.padding(start = 4.dp))
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = local.sessionEndEnabled,
+                                    onCheckedChange = { local = local.copy(sessionEndEnabled = it) }
+                                )
+                                Text("End of session sound", modifier = Modifier.padding(start = 4.dp))
                             }
                         }
                     }
@@ -1001,7 +1011,7 @@ private fun SoundSettingsDialog(
                                 checked = local.switchBeepsEnabled,
                                 onCheckedChange = { local = local.copy(switchBeepsEnabled = it) }
                             )
-                            Text("Switch beeps", modifier = Modifier.padding(start = 4.dp))
+                            Text("Switch sounds", modifier = Modifier.padding(start = 4.dp))
                         }
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -1011,7 +1021,17 @@ private fun SoundSettingsDialog(
                                 checked = local.phaseFanfareEnabled,
                                 onCheckedChange = { local = local.copy(phaseFanfareEnabled = it) }
                             )
-                            Text("Phase fanfare", modifier = Modifier.padding(start = 4.dp))
+                            Text("End of phase sound", modifier = Modifier.padding(start = 4.dp))
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = local.sessionEndEnabled,
+                                onCheckedChange = { local = local.copy(sessionEndEnabled = it) }
+                            )
+                            Text("End of session sound", modifier = Modifier.padding(start = 4.dp))
                         }
                     }
                 }

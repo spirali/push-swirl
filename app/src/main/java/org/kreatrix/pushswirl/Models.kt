@@ -193,10 +193,12 @@ data class NotificationSettings(
     val vibrationAmplitude: Float = 1.0f,
     val switchBeepsEnabled: Boolean = true,
     val phaseFanfareEnabled: Boolean = true,
+    val sessionEndEnabled: Boolean = true,
     // Custom sound URIs (content:// from the file picker); null = use the built-in default.
     val pushSoundUri: String? = null,
     val swirlSoundUri: String? = null,
     val phaseEndSoundUri: String? = null,
+    val sessionEndSoundUri: String? = null,
     val pauseSoundUri: String? = null
 ) {
     val soundEnabled: Boolean get() = soundMode != SoundMode.OFF

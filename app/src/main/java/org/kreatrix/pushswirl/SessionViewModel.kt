@@ -799,7 +799,10 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         dilationJob?.cancel()
 
         // Make phase end notification
-        timerService?.makeNotification(NotificationEvent.PHASE_END)
+        timerService?.makeNotification(
+            if (currentPhaseIndex == activePhases.lastIndex) NotificationEvent.SESSION_END
+            else NotificationEvent.PHASE_END
+        )
 
         // Freeze the clock here so depth input time is never counted in session length
         sessionEndTime = System.currentTimeMillis()

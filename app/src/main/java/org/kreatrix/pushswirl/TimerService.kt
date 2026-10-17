@@ -15,6 +15,8 @@ enum class NotificationEvent {
     PUSH_BEGIN,
     SWIRL_BEGIN,
     PHASE_END,
+    /** Last phase of the session: the phase-end sound, then the session-end sound. */
+    SESSION_END,
     PAUSE_BEGIN
 }
 
@@ -59,7 +61,9 @@ class TimerService : Service() {
     private var phaseFanfareEnabled = true
     private var pushSoundUri: String? = null
     private var swirlSoundUri: String? = null
+    private var sessionEndEnabled = true
     private var phaseEndSoundUri: String? = null
+    private var sessionEndSoundUri: String? = null
     private var pauseSoundUri: String? = null
 
     private val largeIcon: Bitmap by lazy {
@@ -123,7 +127,9 @@ class TimerService : Service() {
         phaseFanfareEnabled = settings.phaseFanfareEnabled
         pushSoundUri = settings.pushSoundUri
         swirlSoundUri = settings.swirlSoundUri
+        sessionEndEnabled = settings.sessionEndEnabled
         phaseEndSoundUri = settings.phaseEndSoundUri
+        sessionEndSoundUri = settings.sessionEndSoundUri
         pauseSoundUri = settings.pauseSoundUri
     }
 
@@ -131,6 +137,7 @@ class TimerService : Service() {
         AppSound.PUSH -> pushSoundUri
         AppSound.SWIRL -> swirlSoundUri
         AppSound.PHASE_END -> phaseEndSoundUri
+        AppSound.SESSION_END -> sessionEndSoundUri
         AppSound.PAUSE -> pauseSoundUri
     }
 
@@ -322,6 +329,14 @@ class TimerService : Service() {
             }
             NotificationEvent.PHASE_END -> {
                 if (phaseFanfareEnabled) playSound(AppSound.PHASE_END, restore) else restore?.invoke()
+                if (vibrationMode != VibrationMode.OFF) vibrate(longArrayOf(0, 400, 200, 400, 200, 400))
+            }
+            NotificationEvent.SESSION_END -> {
+                val playSessionEnd: () -> Unit = {
+                    if (sessionEndEnabled) playSound(AppSound.SESSION_END, restore) else restore?.invoke()
+                    Unit
+                }
+                if (phaseFanfareEnabled) playSound(AppSound.PHASE_END, playSessionEnd) else playSessionEnd()
                 if (vibrationMode != VibrationMode.OFF) vibrate(longArrayOf(0, 400, 200, 400, 200, 400))
             }
             NotificationEvent.PAUSE_BEGIN -> {

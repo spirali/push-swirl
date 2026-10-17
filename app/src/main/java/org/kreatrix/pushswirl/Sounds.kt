@@ -12,7 +12,8 @@ import android.util.Log
 enum class AppSound(val defaultRes: Int, val label: String) {
     PUSH(R.raw.beep_long, "Push"),
     SWIRL(R.raw.beep_short, "Swirl"),
-    PHASE_END(R.raw.finish, "End of phase"),
+    PHASE_END(R.raw.blip, "End of phase"),
+    SESSION_END(R.raw.finish, "End of session"),
     PAUSE(R.raw.ding, "Break")
 }
 
@@ -20,6 +21,7 @@ fun NotificationSettings.customUriFor(sound: AppSound): String? = when (sound) {
     AppSound.PUSH -> pushSoundUri
     AppSound.SWIRL -> swirlSoundUri
     AppSound.PHASE_END -> phaseEndSoundUri
+    AppSound.SESSION_END -> sessionEndSoundUri
     AppSound.PAUSE -> pauseSoundUri
 }
 
@@ -27,6 +29,7 @@ fun NotificationSettings.withCustomUri(sound: AppSound, uri: String?): Notificat
     AppSound.PUSH -> copy(pushSoundUri = uri)
     AppSound.SWIRL -> copy(swirlSoundUri = uri)
     AppSound.PHASE_END -> copy(phaseEndSoundUri = uri)
+    AppSound.SESSION_END -> copy(sessionEndSoundUri = uri)
     AppSound.PAUSE -> copy(pauseSoundUri = uri)
 }
 

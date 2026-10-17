@@ -2,9 +2,12 @@
 
 ## v1.17
 
-* Depth unit setting: choose centimeters or inches (Settings → App).
+* Depth unit setting: choose centimeters or inches (Settings →  App).
 * Statistics: new Depth chart
 * Statistics: Fixed Y axis (day rounding problem)
+* New type "End-of-session sound" 
+* Fanfare was moved to end of session, new sound of end of phase)
+* Fixed a problem with custom sound playing
 
 ## v1.16
 

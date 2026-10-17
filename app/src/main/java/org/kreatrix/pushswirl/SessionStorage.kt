@@ -93,6 +93,7 @@ class SessionStorage(private val context: Context) {
             .putString("sound_uri_push", settings.pushSoundUri)
             .putString("sound_uri_swirl", settings.swirlSoundUri)
             .putString("sound_uri_phase_end", settings.phaseEndSoundUri)
+            .putString("sound_uri_session_end", settings.sessionEndSoundUri)
             .putString("sound_uri_pause", settings.pauseSoundUri)
             .apply()
     }
@@ -112,6 +113,7 @@ class SessionStorage(private val context: Context) {
             pushSoundUri = prefs.getString("sound_uri_push", null),
             swirlSoundUri = prefs.getString("sound_uri_swirl", null),
             phaseEndSoundUri = prefs.getString("sound_uri_phase_end", null),
+            sessionEndSoundUri = prefs.getString("sound_uri_session_end", null),
             pauseSoundUri = prefs.getString("sound_uri_pause", null)
         )
     }
