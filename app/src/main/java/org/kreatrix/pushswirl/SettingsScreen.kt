@@ -205,26 +205,7 @@ fun SettingsScreen(viewModel: SessionViewModel) {
                         }
 
                         if (showDay0Picker) {
-                            val datePickerState = rememberDatePickerState(
-                                initialSelectedDateMillis = day0Date
-                                    ?.let { localMidnightToUtcMidnight(it) }
-                                    ?: System.currentTimeMillis()
-                            )
-                            DatePickerDialog(
-                                onDismissRequest = { showDay0Picker = false },
-                                confirmButton = {
-                                    TextButton(onClick = {
-                                        datePickerState.selectedDateMillis
-                                            ?.let { viewModel.updateDay0Date(utcMidnightToLocalMidnight(it)) }
-                                        showDay0Picker = false
-                                    }) { Text("OK") }
-                                },
-                                dismissButton = {
-                                    TextButton(onClick = { showDay0Picker = false }) { Text("Cancel") }
-                                }
-                            ) {
-                                DatePicker(state = datePickerState)
-                            }
+                            Day0PickerDialog(viewModel, onDismiss = { showDay0Picker = false })
                         }
 
                         if (showMilestonePicker) {
@@ -903,6 +884,32 @@ fun TagColor.toComposeColor(): Color = when (this) {
     TagColor.ORANGE -> Color(0xFFFB8C00)
     TagColor.GREEN  -> Color(0xFF43A047)
     TagColor.BLUE   -> Color(0xFF1E88E5)
+}
+
+/** Date picker that sets Day 0; shared by Settings → Progress and the Home hint chip. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun Day0PickerDialog(viewModel: SessionViewModel, onDismiss: () -> Unit) {
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = viewModel.day0Date
+            ?.let { localMidnightToUtcMidnight(it) }
+            ?: System.currentTimeMillis()
+    )
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = {
+                datePickerState.selectedDateMillis
+                    ?.let { viewModel.updateDay0Date(utcMidnightToLocalMidnight(it)) }
+                onDismiss()
+            }) { Text("OK") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    ) {
+        DatePicker(state = datePickerState)
+    }
 }
 
 private fun utcMidnightToLocalMidnight(utcMillis: Long): Long {

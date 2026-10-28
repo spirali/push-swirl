@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## v1.18
+
+* Home: a "Set Day 0" hint appears when Day 0 is not set, opening the date picker directly
+* Larger "Depth reached" button
+
 ## v1.17
 
 * Depth unit setting: choose centimeters or inches (Settings →  App).

@@ -301,17 +301,18 @@ private fun TTDButtons(viewModel: SessionViewModel) {
         ) {
             Text("Pause", fontSize = 18.sp)
         }
-        Spacer(modifier = Modifier.height(12.dp))
+        // Tapped mid-exercise without looking closely, so it is a large target set apart from Pause.
+        Spacer(modifier = Modifier.height(24.dp))
         Button(
             onClick = { viewModel.finishTTD() },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp),
+                .height(120.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.tertiary
             )
         ) {
-            Text("Depth reached", fontSize = 18.sp)
+            Text("Depth reached", fontSize = 26.sp, fontWeight = FontWeight.Bold)
         }
     } else {
         if (viewModel.ttdSeconds > 0) {

@@ -15,8 +15,8 @@ android {
         applicationId = "org.kreatrix.pushswirl"
         minSdk = 26
         targetSdk = 36
-        versionCode = 17
-        versionName = "1.17"
+        versionCode = 18
+        versionName = "1.18"
 
         setProperty("archivesBaseName", "push_swirl-v$versionName")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

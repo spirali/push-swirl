@@ -156,6 +156,22 @@ private fun HomeInfoContent(
             fontWeight = FontWeight.Medium,
             color = MaterialTheme.colorScheme.secondary
         )
+    } else {
+        // Day 0 is easy to miss in Settings, so offer it where "Day N" would appear.
+        var showDay0Picker by remember { mutableStateOf(false) }
+        Spacer(modifier = Modifier.height(4.dp))
+        AssistChip(
+            onClick = { showDay0Picker = true },
+            label = { Text("Set Day 0 to track your progress") },
+            colors = AssistChipDefaults.assistChipColors(
+                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                labelColor = MaterialTheme.colorScheme.onSecondaryContainer
+            ),
+            border = null
+        )
+        if (showDay0Picker) {
+            Day0PickerDialog(viewModel, onDismiss = { showDay0Picker = false })
+        }
     }
 
     if (timeSinceLastSession != null) {
