@@ -58,6 +58,7 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
     val milestones = viewModel.milestones
     val onSurface = MaterialTheme.colorScheme.onSurface
     val ttdVisibleSizes = viewModel.ttdVisibleSizes
+    val depthVisibleSizes = viewModel.depthVisibleSizes
 
     fun sessionPeriodKey(session: Session, sortedMilestones: List<Milestone>): Long? {
         var key: Long? = null
@@ -67,7 +68,7 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
 
     // Compute filtered + sorted sessions for charts
     val depthUnit = viewModel.depthUnit
-    val chartData = remember(sessions, statsFilterDays, statsExcludedPeriodKeys, statsFilterTagIds, day0Date, onSurface, ttdVisibleSizes, milestones, depthUnit) {
+    val chartData = remember(sessions, statsFilterDays, statsExcludedPeriodKeys, statsFilterTagIds, day0Date, onSurface, ttdVisibleSizes, depthVisibleSizes, milestones, depthUnit) {
         val cutoff = statsFilterDays?.let { System.currentTimeMillis() - it * 24L * 60 * 60 * 1000 }
         val sortedMilestones = milestones.sortedBy { it.date }
         val filtered = run {
@@ -122,14 +123,14 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
             }
         }
 
-        // One line per visible phase size; [valueOf] picks the plotted value (null = no point).
-        fun perSizeSeries(valueOf: (PhaseData) -> Float?): List<ChartSeries> {
+        // One line per phase size in [visibleSizes]; [valueOf] picks the plotted value (null = no point).
+        fun perSizeSeries(visibleSizes: Set<PhaseSize>, valueOf: (PhaseData) -> Float?): List<ChartSeries> {
             val inputs = listOf(
                 Triple(PhaseSize.SMALL,  "Small",  COLOR_SMALL),
                 Triple(PhaseSize.MEDIUM, "Medium", COLOR_MEDIUM),
                 Triple(PhaseSize.LARGE,  "Large",  COLOR_LARGE),
                 Triple(PhaseSize.XL,     "XL",     COLOR_XL),
-            ).filter { (size, _, _) -> size in ttdVisibleSizes }.map { (size, label, color) ->
+            ).filter { (size, _, _) -> size in visibleSizes }.map { (size, label, color) ->
                 val points = sorted.mapIndexedNotNull { idx, session ->
                     session.phases.find { it.size == size }?.let(valueOf)?.let { value ->
                         ChartPoint(sessionX(session, idx), value)
@@ -148,9 +149,12 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
                 buildSeries(color, label, points, maOnly, regColor = tintedReg)
             }
         }
-        val ttdSeries = perSizeSeries { it.ttdSeconds.toFloat() }
-        // Depth is stored in cm; plot it in the user's unit.
-        val depthSeries = perSizeSeries { phase -> phase.depthCm?.let { depthUnit.fromCm(it).toFloat() } }
+        val ttdSeries = perSizeSeries(ttdVisibleSizes) { it.ttdSeconds.toFloat() }
+        // Depth is stored in cm; plot it in the user's unit. A 0 depth (e.g. from a Butterfly import) means
+        // "not recorded" and is skipped, otherwise it would drag the axis down to 0.
+        val depthSeries = perSizeSeries(depthVisibleSizes) { phase ->
+            phase.depthCm?.takeIf { it > 0f }?.let { depthUnit.fromCm(it).toFloat() }
+        }
 
         val gapSeries = if (sorted.size < 2) emptyList()
         else {
@@ -169,6 +173,7 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
         ChartSeriesSet(ttdSeries, gapSeries, lengthSeries, depthSeries)
     }
     val (ttdSeries, gapSeries, lengthSeries, depthSeries) = chartData
+    val hasDepthData = remember(sessions) { sessions.any { s -> s.phases.any { (it.depthCm ?: 0f) > 0f } } }
 
     // Stacked TTD layers + sum regression lines
     val ttdStackedData = remember(sessions, statsFilterDays, statsExcludedPeriodKeys, statsFilterTagIds, day0Date, ttdVisibleSizes, milestones) {
@@ -465,23 +470,27 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
                         }
                     }
 
-                    // Depth chart (only when depth has been recorded); uses the same size filter as TTD
-                    if (depthSeries.isNotEmpty()) {
+                    // Depth chart (only when depth has been recorded); its size filter is independent of TTD's.
+                    // Keyed on recorded data, not on depthSeries, so deselecting every size keeps the chips.
+                    if (hasDepthData) {
                         ChartCard(title = "Depth") {
-                            SizeFilterChips(ttdVisibleSizes) { viewModel.toggleTtdSize(it) }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            LineChart(
-                                series = depthSeries,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(180.dp),
-                                yAxisFormatter = { formatDepthTick(it, depthUnit) },
-                                xAxisFormatter = xAxisFormatter,
-                                xMilestonePositions = xMilestonePositions,
-                                yStepCandidates = depthStepCandidates(depthUnit)
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            ChartLegend(series = depthSeries)
+                            SizeFilterChips(depthVisibleSizes) { viewModel.toggleDepthSize(it) }
+                            if (depthSeries.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                LineChart(
+                                    series = depthSeries,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(180.dp),
+                                    yAxisFormatter = { formatDepthTick(it, depthUnit) },
+                                    xAxisFormatter = xAxisFormatter,
+                                    xMilestonePositions = xMilestonePositions,
+                                    yStepCandidates = depthStepCandidates(depthUnit),
+                                    yFromZero = false
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                ChartLegend(series = depthSeries)
+                            }
                         }
                     }
 

@@ -4,6 +4,9 @@
 
 * Home: a "Set Day 0" hint appears when Day 0 is not set, opening the date picker directly
 * Larger "Depth reached" button
+* After the last phase only the end-of-session sound plays (a new sound setting can bring old behavior back)
+* Fixed: Statistics: TTD and Depth charts have separate phase-size filters
+* Statistics: Depth chart Y axis starts near the lowest depth instead of 0
 
 ## v1.17
 

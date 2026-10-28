@@ -959,6 +959,17 @@ private fun SoundSettingsDialog(
                                 Text("End of phase sound", modifier = Modifier.padding(start = 4.dp))
                             }
                             Row(
+                                modifier = Modifier.fillMaxWidth().padding(start = 24.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = local.lastPhaseEndEnabled,
+                                    onCheckedChange = { local = local.copy(lastPhaseEndEnabled = it) },
+                                    enabled = local.phaseFanfareEnabled
+                                )
+                                Text("Also after the last phase", modifier = Modifier.padding(start = 4.dp))
+                            }
+                            Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -1023,6 +1034,17 @@ private fun SoundSettingsDialog(
                                 onCheckedChange = { local = local.copy(phaseFanfareEnabled = it) }
                             )
                             Text("End of phase sound", modifier = Modifier.padding(start = 4.dp))
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(start = 24.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = local.lastPhaseEndEnabled,
+                                onCheckedChange = { local = local.copy(lastPhaseEndEnabled = it) },
+                                enabled = local.phaseFanfareEnabled
+                            )
+                            Text("Also after the last phase", modifier = Modifier.padding(start = 4.dp))
                         }
                         Row(
                             modifier = Modifier.fillMaxWidth(),

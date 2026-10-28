@@ -263,6 +263,12 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         ttdVisibleSizes = if (size in ttdVisibleSizes) ttdVisibleSizes - size else ttdVisibleSizes + size
     }
 
+    var depthVisibleSizes by mutableStateOf(PhaseSize.entries.toSet())
+
+    fun toggleDepthSize(size: PhaseSize) {
+        depthVisibleSizes = if (size in depthVisibleSizes) depthVisibleSizes - size else depthVisibleSizes + size
+    }
+
     init {
         pendingResume = storage.loadActiveSessionSnapshot()
     }

@@ -315,7 +315,7 @@ class SessionStorage(private val context: Context) {
         val sessions = loadSessions()
         val lastPhaseWithDepth = sessions
             .flatMap { it.phases }
-            .filter { it.size == size && it.depthCm != null }
+            .filter { it.size == size && (it.depthCm ?: 0f) > 0f }
             .firstOrNull()
 
         return lastPhaseWithDepth?.depthCm ?: 14f
@@ -609,7 +609,8 @@ class SessionStorage(private val context: Context) {
                 val staticSec     = f.getOrElse(5) { "" }.toIntOrNull()
                 val dynMediumSec  = f.getOrElse(6) { "" }.toIntOrNull()
                 val dynLargeSec   = f.getOrElse(7) { "" }.toIntOrNull()
-                val finalDepth    = f.getOrElse(8) { "" }.toFloatOrNull()
+                // Butterfly writes 0 when no depth was recorded
+                val finalDepth    = f.getOrElse(8) { "" }.toFloatOrNull()?.takeIf { it > 0f }
 
                 // Stable duplicate-proof ID
                 val id = UUID.nameUUIDFromBytes("butterfly:${dateStr}T${startTimeStr}".toByteArray()).toString()

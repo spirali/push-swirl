@@ -194,6 +194,8 @@ data class NotificationSettings(
     val switchBeepsEnabled: Boolean = true,
     val phaseFanfareEnabled: Boolean = true,
     val sessionEndEnabled: Boolean = true,
+    // Play the end-of-phase sound before the end-of-session sound when the last phase ends.
+    val lastPhaseEndEnabled: Boolean = false,
     // Custom sound URIs (content:// from the file picker); null = use the built-in default.
     val pushSoundUri: String? = null,
     val swirlSoundUri: String? = null,

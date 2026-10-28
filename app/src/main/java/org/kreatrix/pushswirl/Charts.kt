@@ -134,19 +134,23 @@ private fun pickNiceStep(
 /**
  * [stepCandidates] overrides the default step list (e.g. day-aligned steps); the formatter must then
  * render every candidate exactly, since the built-in "friendly unit" step restrictions are skipped.
+ * Ticks start at [dataMin] rounded down to a whole unit (0 by default), not to the step, so a narrow
+ * range is not pushed down to a far-off round number; the bottom is `ticks.first()`.
  */
 fun niceYTicks(
     dataMax: Float,
     formatter: (Float) -> String,
     targetCount: Int = 5,
-    stepCandidates: List<Float>? = null
+    stepCandidates: List<Float>? = null,
+    dataMin: Float = 0f
 ): Pair<Float, List<Float>> {
     fun ticksForStep(step: Float): List<Float> {
-        val count = ceil(dataMax / step).toInt() + 1
-        return generateSequence(0f) { it + step }.take(count).toList()
+        val first = floor(dataMin)
+        val count = (ceil((dataMax - first) / step).toInt() + 1).coerceAtLeast(2)
+        return generateSequence(first) { it + step }.take(count).toList()
     }
     val step = pickNiceStep(
-        targetCount, dataMax / targetCount, ::ticksForStep, formatter, sameUnitLabels = { it.drop(1) },
+        targetCount, (dataMax - dataMin) / targetCount, ::ticksForStep, formatter, sameUnitLabels = { it.drop(1) },
         candidates = stepCandidates ?: Y_TICK_CANDIDATES,
         friendlyUnitStepsOnly = stepCandidates == null
     )
@@ -173,7 +177,9 @@ fun LineChart(
     yAxisFormatter: (Float) -> String = { "%.0f".format(it) },
     xAxisFormatter: ((Float) -> String)? = null,
     xMilestonePositions: List<Float> = emptyList(),
-    yStepCandidates: List<Float>? = null
+    yStepCandidates: List<Float>? = null,
+    // false = the Y axis starts near the lowest value instead of at 0
+    yFromZero: Boolean = true
 ) {
     val textColor = MaterialTheme.colorScheme.onSurface
     val gridColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
@@ -190,7 +196,11 @@ fun LineChart(
         val xMax = allPoints.maxOf { it.x }
         val scalePoints = series.filter { it.countForYScale }.flatMap { it.points }
         val dataYMax = (if (scalePoints.isEmpty()) allPoints else scalePoints).maxOf { it.y }.coerceAtLeast(1f)
-        val (chartYMax, yTicks) = niceYTicks(dataYMax, yAxisFormatter, stepCandidates = yStepCandidates)
+        // All points (trend lines included) so nothing is drawn below the bottom of the axis
+        val dataYMin = if (yFromZero) 0f else allPoints.minOf { it.y }.coerceIn(0f, dataYMax)
+        val (chartYMax, yTicks) =
+            niceYTicks(dataYMax, yAxisFormatter, stepCandidates = yStepCandidates, dataMin = dataYMin)
+        val chartYMin = yTicks.first()
 
         Canvas(modifier = modifier) {
             val leftPad    = with(density) { 68.dp.toPx() }
@@ -212,7 +222,7 @@ fun LineChart(
                 if (xMax == xMin) chartLeft + chartWidth / 2f
                 else chartLeft + (x - xMin) / (xMax - xMin) * chartWidth
 
-            fun mapY(y: Float): Float = chartBottom - (y / chartYMax) * chartHeight
+            fun mapY(y: Float): Float = chartBottom - ((y - chartYMin) / (chartYMax - chartYMin)) * chartHeight
 
             val paint = AndroidPaint().apply {
                 color       = textColor.toArgb()

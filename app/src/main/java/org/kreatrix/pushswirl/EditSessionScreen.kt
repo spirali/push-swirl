@@ -74,6 +74,7 @@ fun EditSessionScreen(viewModel: SessionViewModel) {
                 phase.depthCm == null -> null
                 editPhases[i].depthCm == editPhases[i].originalDepthText -> phase.depthCm
                 else -> editPhases[i].depthCm.replace(',', '.').toDoubleOrNull()?.let { depthUnit.toCm(it) }
+                    ?.takeIf { it > 0f }
             }
             phase.copy(ttdSeconds = mins * 60 + secs, depthCm = newDepth)
         }

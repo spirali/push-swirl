@@ -15,7 +15,7 @@ enum class NotificationEvent {
     PUSH_BEGIN,
     SWIRL_BEGIN,
     PHASE_END,
-    /** Last phase of the session: the phase-end sound, then the session-end sound. */
+    /** Last phase of the session: the session-end sound, optionally preceded by the phase-end sound. */
     SESSION_END,
     PAUSE_BEGIN
 }
@@ -62,6 +62,7 @@ class TimerService : Service() {
     private var pushSoundUri: String? = null
     private var swirlSoundUri: String? = null
     private var sessionEndEnabled = true
+    private var lastPhaseEndEnabled = false
     private var phaseEndSoundUri: String? = null
     private var sessionEndSoundUri: String? = null
     private var pauseSoundUri: String? = null
@@ -128,6 +129,7 @@ class TimerService : Service() {
         pushSoundUri = settings.pushSoundUri
         swirlSoundUri = settings.swirlSoundUri
         sessionEndEnabled = settings.sessionEndEnabled
+        lastPhaseEndEnabled = settings.lastPhaseEndEnabled
         phaseEndSoundUri = settings.phaseEndSoundUri
         sessionEndSoundUri = settings.sessionEndSoundUri
         pauseSoundUri = settings.pauseSoundUri
@@ -336,7 +338,8 @@ class TimerService : Service() {
                     if (sessionEndEnabled) playSound(AppSound.SESSION_END, restore) else restore?.invoke()
                     Unit
                 }
-                if (phaseFanfareEnabled) playSound(AppSound.PHASE_END, playSessionEnd) else playSessionEnd()
+                if (phaseFanfareEnabled && lastPhaseEndEnabled) playSound(AppSound.PHASE_END, playSessionEnd)
+                else playSessionEnd()
                 if (vibrationMode != VibrationMode.OFF) vibrate(longArrayOf(0, 400, 200, 400, 200, 400))
             }
             NotificationEvent.PAUSE_BEGIN -> {
