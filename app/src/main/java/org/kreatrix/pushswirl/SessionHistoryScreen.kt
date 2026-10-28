@@ -65,6 +65,7 @@ fun SessionHistoryScreen(viewModel: SessionViewModel) {
                     onToggleDirection = { viewModel.historySortAscending = !viewModel.historySortAscending }
                 )
                 val expandedIds = remember { mutableStateMapOf<String, Boolean>() }
+                val gaps = remember(viewModel.sessions) { sessionGaps(viewModel.sessions) }
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
@@ -73,6 +74,7 @@ fun SessionHistoryScreen(viewModel: SessionViewModel) {
                     items(viewModel.sortedSessions, key = { it.id }) { session ->
                         SessionCard(
                             session = session,
+                            gapMs = gaps[session.id],
                             allTags = viewModel.tags,
                             depthUnit = viewModel.depthUnit,
                             expanded = expandedIds[session.id] == true,
@@ -141,6 +143,7 @@ private fun SortControlsRow(
 @Composable
 fun SessionCard(
     session: Session,
+    gapMs: Long?,
     allTags: List<Tag>,
     depthUnit: DepthUnit,
     expanded: Boolean,
@@ -166,12 +169,21 @@ fun SessionCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = formatDate(session.startTimestamp ?: session.timestamp),
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        Text(
+                            text = formatDate(session.startTimestamp ?: session.timestamp),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        if (gapMs != null) {
+                            Text(
+                                text = "  gap ${formatGap(gapMs)}",
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                            )
+                        }
+                    }
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "Total: ${formatDuration(session.totalSeconds)}",
@@ -347,6 +359,32 @@ fun SessionCard(
             }
         )
     }
+}
+
+/**
+ * Time since the previous session for each session id: previous session's end to this one's start,
+ * by real time regardless of the history sort. The first session (and overlapping records) get none.
+ */
+internal fun sessionGaps(sessions: List<Session>): Map<String, Long> {
+    fun Session.start() = startTimestamp ?: timestamp
+    val byTime = sessions.sortedBy { it.start() }
+    return byTime.zipWithNext { prev, cur -> cur.id to cur.start() - prev.timestamp }
+        .filter { (_, gap) -> gap >= 0 }
+        .toMap()
+}
+
+/** "45m", "26h 15m"; from 36 hours on only days and hours: "1d 12h", "4d". */
+internal fun formatGap(ms: Long): String {
+    val totalMinutes = (ms + 30_000) / 60_000
+    if (totalMinutes < 36 * 60) {
+        val h = totalMinutes / 60
+        val m = totalMinutes % 60
+        return if (h > 0) "${h}h ${m}m" else "${m}m"
+    }
+    val totalHours = (ms + 1_800_000) / 3_600_000
+    val d = totalHours / 24
+    val h = totalHours % 24
+    return if (h > 0) "${d}d ${h}h" else "${d}d"
 }
 
 fun formatDate(timestamp: Long): String {

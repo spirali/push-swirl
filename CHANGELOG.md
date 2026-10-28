@@ -8,6 +8,8 @@
 * Fixed: Statistics: TTD and Depth charts have separate phase-size filters
 * Statistics: Depth chart Y axis starts near the lowest depth instead of 0
 * Countdown interval can be set in days, hours and minutes; Home shows days in the countdown
+* History: each session shows the gap since the previous session
+* Statistics: Gap is now measured from the end of the previous session to the start of the next (same as History), always against the real previous session even when filtered
 
 ## v1.17
 

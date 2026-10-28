@@ -156,14 +156,13 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
             phase.depthCm?.takeIf { it > 0f }?.let { depthUnit.fromCm(it).toFloat() }
         }
 
-        val gapSeries = if (sorted.size < 2) emptyList()
-        else {
-            val points = sorted.indices.drop(1).map { idx ->
-                val gapHours = (sorted[idx].timestamp - sorted[idx - 1].timestamp).toFloat() / 3_600_000f
-                ChartPoint(sessionX(sorted[idx], idx), gapHours)
-            }
-            buildSeries(COLOR_GAP, "Gap", points, points.size > CHART_DENSE_THRESHOLD)
+        // Same gap as History: previous session's end (among all sessions, not just the filtered ones)
+        // to this session's start.
+        val gaps = sessionGaps(sessions)
+        val gapPoints = sorted.mapIndexedNotNull { idx, session ->
+            gaps[session.id]?.let { ChartPoint(sessionX(session, idx), it.toFloat() / 3_600_000f) }
         }
+        val gapSeries = buildSeries(COLOR_GAP, "Gap", gapPoints, gapPoints.size > CHART_DENSE_THRESHOLD)
 
         val lengthPoints = sorted.mapIndexed { idx, session ->
             ChartPoint(sessionX(session, idx), session.totalSeconds.toFloat() / 60f)
@@ -221,6 +220,7 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
             result
         }
         val sorted = filtered.sortedBy { it.timestamp }
+        val gaps = sessionGaps(sessions)
 
         val scatterBoundaries: List<Float> = if (day0Date != null && milestones.isNotEmpty())
             milestones.map { (it.date - day0Date) / 86_400_000f }.sorted()
@@ -240,11 +240,10 @@ fun StatisticsScreen(viewModel: SessionViewModel) {
             Triple(PhaseSize.LARGE,  "Large",  COLOR_LARGE),
             Triple(PhaseSize.XL,     "XL",     COLOR_XL),
         ).mapNotNull { (size, label, color) ->
-            if (sorted.size < 2) return@mapNotNull null
-            val raw = sorted.indices.drop(1).mapNotNull { idx ->
-                val phase = sorted[idx].phases.find { it.size == size } ?: return@mapNotNull null
-                val gapHours = (sorted[idx].timestamp - sorted[idx - 1].timestamp).toFloat() / 3_600_000f
-                Triple(gapHours, phase.ttdSeconds.toFloat(), sessionSplitIdx(sorted[idx].timestamp))
+            val raw = sorted.mapNotNull { session ->
+                val phase = session.phases.find { it.size == size } ?: return@mapNotNull null
+                val gapHours = (gaps[session.id] ?: return@mapNotNull null).toFloat() / 3_600_000f
+                Triple(gapHours, phase.ttdSeconds.toFloat(), sessionSplitIdx(session.timestamp))
             }
             if (raw.isEmpty()) return@mapNotNull null
             val n = raw.size
