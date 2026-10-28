@@ -40,9 +40,12 @@ fun SettingsScreen(viewModel: SessionViewModel) {
     val isWideScreen = LocalIsWideScreen.current
     val sectionTitles = listOf("Progress", "Countdown", "Custom times", "Tags", "App", "Sounds")
 
+    // Seeded once, not keyed on the saved value: the fields save as you type, and re-deriving them
+    // from the total would reformat them mid-edit (a cleared field snapping back to "0").
     val intervalMinutesTotal = viewModel.countdownIntervalMinutes
-    var hoursText by remember(intervalMinutesTotal) { mutableStateOf((intervalMinutesTotal / 60).toString()) }
-    var minutesText by remember(intervalMinutesTotal) { mutableStateOf((intervalMinutesTotal % 60).toString()) }
+    var daysText by remember { mutableStateOf((intervalMinutesTotal / (24 * 60)).toString()) }
+    var hoursText by remember { mutableStateOf((intervalMinutesTotal % (24 * 60) / 60).toString()) }
+    var minutesText by remember { mutableStateOf((intervalMinutesTotal % 60).toString()) }
     // null = show the section list (phone only); wide screens always render a section.
     var selectedTab by remember { mutableStateOf<Int?>(null) }
 
@@ -53,10 +56,12 @@ fun SettingsScreen(viewModel: SessionViewModel) {
         else viewModel.navigateTo(AppScreen.Home)
     }
 
+    // Taken literally (30 h = 1 d 6 h); an all-zero interval is ignored and the previous one kept.
     fun commitInterval() {
-        val h = hoursText.toIntOrNull()?.coerceIn(0, 99) ?: 0
-        val m = minutesText.toIntOrNull()?.coerceIn(0, 59) ?: 0
-        val total = h * 60 + m
+        val d = daysText.toIntOrNull() ?: 0
+        val h = hoursText.toIntOrNull() ?: 0
+        val m = minutesText.toIntOrNull() ?: 0
+        val total = (d * 24 + h) * 60 + m
         if (total > 0) viewModel.updateCountdownIntervalMinutes(total)
     }
 
@@ -315,27 +320,31 @@ fun SettingsScreen(viewModel: SessionViewModel) {
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
+                                // No unit suffixes: three fields in a row leave no room for them on a phone.
+                                OutlinedTextField(
+                                    value = daysText,
+                                    onValueChange = { daysText = it.filter { c -> c.isDigit() }.take(2); commitInterval() },
+                                    label = { Text("Days") },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    singleLine = true,
+                                    modifier = Modifier.weight(1f)
+                                )
                                 OutlinedTextField(
                                     value = hoursText,
-                                    onValueChange = { hoursText = it.filter { c -> c.isDigit() }.take(2) },
+                                    onValueChange = { hoursText = it.filter { c -> c.isDigit() }.take(2); commitInterval() },
                                     label = { Text("Hours") },
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                     singleLine = true,
-                                    modifier = Modifier.weight(1f),
-                                    trailingIcon = { Text("h", fontSize = 14.sp) }
+                                    modifier = Modifier.weight(1f)
                                 )
                                 OutlinedTextField(
                                     value = minutesText,
-                                    onValueChange = { minutesText = it.filter { c -> c.isDigit() }.take(2) },
+                                    onValueChange = { minutesText = it.filter { c -> c.isDigit() }.take(2); commitInterval() },
                                     label = { Text("Minutes") },
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                     singleLine = true,
-                                    modifier = Modifier.weight(1f),
-                                    trailingIcon = { Text("m", fontSize = 14.sp) }
+                                    modifier = Modifier.weight(1f)
                                 )
-                                Button(onClick = { commitInterval() }) {
-                                    Text("Set")
-                                }
                             }
 
                             Spacer(modifier = Modifier.height(20.dp))

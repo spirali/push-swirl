@@ -7,6 +7,7 @@
 * After the last phase only the end-of-session sound plays (a new sound setting can bring old behavior back)
 * Fixed: Statistics: TTD and Depth charts have separate phase-size filters
 * Statistics: Depth chart Y axis starts near the lowest depth instead of 0
+* Countdown interval can be set in days, hours and minutes; Home shows days in the countdown
 
 ## v1.17
 

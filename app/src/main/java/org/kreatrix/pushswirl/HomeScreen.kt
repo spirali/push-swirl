@@ -49,9 +49,14 @@ fun HomeScreen(viewModel: SessionViewModel) {
         val diffMs = targetMs - currentTime
         val diffMinutes = diffMs / 60_000
         val absMin = Math.abs(diffMinutes)
-        val h = absMin / 60
+        val d = absMin / (24 * 60)
+        val h = absMin % (24 * 60) / 60
         val m = absMin % 60
-        val timeStr = if (h > 0) "${h}h ${m}m" else "${m}m"
+        val timeStr = when {
+            d > 0 -> "${d}d ${h}h ${m}m"
+            h > 0 -> "${h}h ${m}m"
+            else -> "${m}m"
+        }
         if (diffMs >= 0) CountdownInfo("Next session in ", timeStr, false)
         else CountdownInfo("", "$timeStr overdue", true)
     } else null
